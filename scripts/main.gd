@@ -13,7 +13,7 @@ const RailView = preload("res://scripts/rail_view.gd")
 const SAVE_PATH := "user://progression.cfg"
 const TOP_H := 40
 const BOTTOM_H := 102
-const SPEEDS := [["Lent", 3], ["Normal", 6], ["Rapide", 12], ["Éclair", 30]]
+const SPEEDS := [["×½", 3], ["×1", 6], ["×2", 12], ["×4", 24]]
 const EDITOR_W := 520
 const MENU_W := 640
 const PANEL_BG := Color(0.09, 0.10, 0.13)
@@ -239,14 +239,14 @@ func _build_bottom_bar() -> void:
 	btn_stop.pressed.connect(_on_stop)
 	bh.add_child(btn_stop)
 	bh.add_child(VSeparator.new())
-	bh.add_child(_label("Vitesse"))
 	var group := ButtonGroup.new()
 	for sp in SPEEDS:
 		var sb := Button.new()
 		sb.text = sp[0]
 		sb.toggle_mode = true
 		sb.button_group = group
-		sb.custom_minimum_size = Vector2(76, 40)
+		sb.custom_minimum_size = Vector2(46, 40)
+		sb.tooltip_text = "Vitesse de la simulation"
 		for state in ["normal", "hover", "pressed", "hover_pressed"]:
 			var box := StyleBoxFlat.new()
 			var on: bool = state.ends_with("pressed")
