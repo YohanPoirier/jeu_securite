@@ -34,6 +34,7 @@ const C_ROBOT := Color(0.25, 0.60, 0.95)
 const CRATES := [Color(0.65, 0.48, 0.30), Color(0.50, 0.58, 0.64), Color(0.72, 0.60, 0.34), Color(0.40, 0.55, 0.47)]
 
 var _brain_tex: Texture2D = null
+var _gate_angle := [0.0, 0.0]  # angle d'ouverture affiché des deux portes (animé)
 var _night: ColorRect = null  # calque d'obscurité (shader) posé sur l'entrepôt
 var _hud: Control = null  # calque des noms et du cerveau, au-dessus de la nuit
 
@@ -484,29 +485,31 @@ func _draw_gate(rc: Rect2, left_side: bool, font: Font, gate_i := 0) -> void:
 	draw_rect(mat, Color(0.55, 0.20, 0.18))
 	draw_rect(mat.grow(-3.0), Color(0.40, 0.14, 0.14), false, 1.5)
 	draw_string(font, Vector2(mat.position.x, mat.get_center().y + 3.5), "WELCOME", HORIZONTAL_ALIGNMENT_CENTER, mat.size.x, 8, Color(0.95, 0.85, 0.65))
-	# plaque : pivote autour de sa charnière (en haut) selon l'état de la porte
+	# plaque : pivote autour de sa charnière et s'ouvre vers l'extérieur. Charnière en haut pour la
+	# porte de gauche, en bas pour celle de droite ; la poignée est du côté opposé (bout libre).
 	var state := "ferme"
 	if world != null:
 		state = String(world.gates[gate_i].state)
-	var angle := 0.0
+	var target := 0.0
 	match state:
-		"force":
-			angle = deg_to_rad(10.0 + 22.0 * absf(sin(Time.get_ticks_msec() / 90.0)))  # elle tressaute
+		"force", "ouverte":  # un voleur est sur la porte : grande ouverte
+			target = deg_to_rad(88.0)
 		"entrouverte":
-			angle = deg_to_rad(28.0)
-		"ouverte":
-			angle = deg_to_rad(80.0)
-	if left_side:
-		angle = -angle  # elle s'ouvre vers l'intérieur
-	draw_set_transform(Vector2(cx, rc.position.y), angle, Vector2.ONE)
-	var slab := Rect2(-w / 2.0, 0.0, w, rc.size.y)
+			target = deg_to_rad(26.0)
+	_gate_angle[gate_i] = move_toward(_gate_angle[gate_i], target, 0.09)
+	var hinge_top := left_side
+	var hinge := Vector2(cx, rc.position.y if hinge_top else rc.end.y)
+	draw_set_transform(hinge, _gate_angle[gate_i], Vector2.ONE)
+	var slab := Rect2(-w / 2.0, 0.0 if hinge_top else -rc.size.y, w, rc.size.y)
 	draw_rect(slab, C_DOOR)
 	draw_rect(Rect2(slab.position, Vector2(slab.size.x * 0.4, slab.size.y)), C_DOOR.lightened(0.25))
 	draw_rect(slab, C_DOOR.darkened(0.55), false, 2.0)
-	var hy := rc.size.y * (0.72 if left_side else 0.28) - 4.0  # la poignée change de bout selon l'orientation
+	var hy := (rc.size.y * 0.78 if hinge_top else -rc.size.y * 0.78) - 4.0
 	draw_rect(Rect2(slab.position.x - 3.0, hy, 3.0, 8.0), Color(0.30, 0.22, 0.10))
 	draw_rect(Rect2(slab.end.x, hy, 3.0, 8.0), Color(0.30, 0.22, 0.10))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if _gate_angle[gate_i] != target:
+		queue_redraw()  # on continue d'animer jusqu'à la position voulue
 
 
 func _draw_doorway(rc: Rect2) -> void:

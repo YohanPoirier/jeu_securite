@@ -194,7 +194,7 @@ func _nearest_item(x: int) -> Vector2i:
 
 
 ## Chemin retour : de la case (x, ry) jusqu'à la porte la plus proche (case -1 ou length).
-func _path_out(x: int, ry: int, prefer: int) -> Array:  # prefer = côté d'entrée (-1 gauche, +1 droite)
+func _path_out(x: int, ry: int, prefer: int) -> Array:  # prefer = côté d'entrée (+1 : porte gauche, -1 : porte droite)
 	var out: Array = []
 	var sgn := 0 if ry == 0 else (1 if ry > 0 else -1)
 	var room := _room_of(x)
@@ -208,8 +208,11 @@ func _path_out(x: int, ry: int, prefer: int) -> Array:  # prefer = côté d'entr
 		while cy != 0:
 			cy -= sgn
 			out.append(Vector2i(cx, cy))
-	# il ressort par l'autre porte que celle qu'il a forcée (qui est encore entrouverte)
-	var gate := length if prefer == 1 else -1
+	# il ressort par la porte la plus proche (à égalité : celle par laquelle il est entré)
+	var left_cost := cx + 1
+	var right_cost := length - cx
+	var go_left := left_cost < right_cost or (left_cost == right_cost and prefer == 1)
+	var gate := -1 if go_left else length
 	while cx != gate:
 		cx += 1 if gate > cx else -1
 		out.append(Vector2i(cx, 0))
