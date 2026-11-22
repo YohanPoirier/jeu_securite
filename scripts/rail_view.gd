@@ -1,7 +1,8 @@
 extends Control
 ## L'entrepôt vu de dessus, dessiné sur une grille de cases : pelouse et décor autour, murs, couloir
 ## (c'est le rail), petites salles pleines d'étagères, portes, robots et intrus.
-## La nuit est tombée : tout est assombri, sauf la case du robot et celle qu'éclaire sa lampe.
+## La nuit est tombée : tout est assombri, sauf ce qu'éclaire la lampe de poche du vigile (un faisceau
+## qui couvre la case devant lui) et la pelouse autour des lampadaires.
 ## Pour l'instant c'est purement graphique : la logique du jeu reste celle du rail (world.gd).
 ##
 ## Déplacement « au tour par tour » : pendant un tick, l'élément glisse vers sa nouvelle case
@@ -9,6 +10,7 @@ extends Control
 ## Un clic sur un robot émet robot_clicked(id) : l'interface ouvre alors son éditeur.
 
 signal robot_clicked(id: String)
+signal background_clicked  # clic dans l'entrepôt, hors de tout robot
 
 var world = null
 var alpha := 1.0  # avancement dans le tick courant, de 0 à 1
@@ -32,6 +34,69 @@ const C_ROBOT := Color(0.25, 0.60, 0.95)
 const CRATES := [Color(0.65, 0.48, 0.30), Color(0.50, 0.58, 0.64), Color(0.72, 0.60, 0.34), Color(0.40, 0.55, 0.47)]
 
 var _brain_tex: Texture2D = null
+var _night: ColorRect = null  # calque d'obscurité (shader) posé sur l'entrepôt
+var _hud: Control = null  # calque des noms et du cerveau, au-dessus de la nuit
+
+const NIGHT_SHADER := """
+shader_type canvas_item;
+uniform vec4 box;            // zone intérieure de l'entrepôt : x, y, largeur, hauteur (pixels)
+uniform float out_alpha = 0.30;
+uniform float in_alpha = 0.55;
+uniform float cell = 48.0;
+uniform int count = 0;       // nombre de lampes de poche
+uniform vec2 pos[8];         // position de la lampe (pixels)
+uniform vec2 dir[8];         // direction du faisceau (vecteur unitaire)
+uniform vec2 body[8];        // centre du corps du robot (petit halo)
+uniform int lamp_count = 0;  // lampadaires
+uniform vec2 lamp[32];
+varying vec2 vpos;
+void vertex() { vpos = VERTEX; }
+void fragment() {
+	vec2 p = vpos;
+	bool inside = p.x >= box.x && p.x <= box.x + box.z && p.y >= box.y && p.y <= box.y + box.w;
+	float a = inside ? in_alpha : out_alpha;
+	float light = 0.0;
+	for (int i = 0; i < 8; i++) {
+		if (i >= count) { break; }
+		vec2 d = dir[i];
+		vec2 q = p - pos[i];
+		float along = dot(q, d);
+		float across = abs(dot(q, vec2(-d.y, d.x)));
+		float len = cell * 1.1;
+		float t = clamp(along / len, 0.0, 1.0);
+		float hw = mix(cell * 0.05, cell * 0.50, t);
+		float cone = (1.0 - smoothstep(hw * 0.65, hw, across))
+			* smoothstep(-cell * 0.03, cell * 0.04, along)
+			* (1.0 - smoothstep(len * 0.80, len, along));
+		float halo = 1.0 - smoothstep(cell * 0.16, cell * 0.46, length(p - body[i]));
+		light = max(light, max(cone * 0.92, halo * 0.75));
+	}
+	for (int j = 0; j < 32; j++) {
+		if (j >= lamp_count) { break; }
+		float g = 1.0 - smoothstep(0.0, cell * 2.5, length(p - lamp[j]));
+		light = max(light, g * g * 0.75);
+	}
+	vec3 night = vec3(0.02, 0.03, 0.08);
+	vec3 warm = vec3(1.0, 0.90, 0.58);
+	COLOR = vec4(mix(night, warm, light), mix(a, 0.10, light));
+}
+"""
+
+
+func _ready() -> void:
+	var sh := Shader.new()
+	sh.code = NIGHT_SHADER
+	_night = ColorRect.new()
+	_night.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_night.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_night.material = ShaderMaterial.new()
+	_night.material.shader = sh
+	add_child(_night)
+	_hud = Control.new()
+	_hud.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud.draw.connect(_draw_hud)
+	add_child(_hud)
 
 
 ## Géométrie de la grille, commune au dessin et aux clics.
@@ -65,19 +130,63 @@ func _robot_center(lay: Dictionary, rb: Dictionary) -> Vector2:
 	return Vector2(lay.x0 + (col + 0.5) * lay.cell, lay.y0 + (RAIL_ROW + 0.5) * lay.cell)
 
 
-func _robot_rect(lay: Dictionary, rb: Dictionary) -> Rect2:
-	var s: float = lay.cell * 0.7
-	return Rect2(_robot_center(lay, rb) - Vector2(s, s) / 2.0, Vector2(s, s))
+## Plusieurs personnages sur une même case : on les range côte à côte, en plus petit.
+## Retourne {clé -> {"off": décalage en cases, "sc": échelle}} ; clés « r<id> » (robots) et « t<n> » (intrus).
+func _slots() -> Dictionary:
+	var by_cell: Dictionary = {}
+	if world == null:
+		return by_cell
+	for rb in world.robots:
+		var key: int = rb.pos
+		by_cell[key] = by_cell.get(key, []) + ["r" + str(rb.id)]
+	for j in world.intruders.size():
+		if world.intruders[j].state != "attente":
+			var key2: int = world.intruders[j].pos
+			by_cell[key2] = by_cell.get(key2, []) + ["t" + str(j)]
+	var out: Dictionary = {}
+	for key in by_cell:
+		var ids: Array = by_cell[key]
+		var n := ids.size()
+		for idx in n:
+			var off := Vector2.ZERO
+			var sc := 1.0
+			if n == 2:
+				off = Vector2(-0.22 + 0.44 * idx, 0.0)
+				sc = 0.82
+			elif n == 3:
+				off = Vector2(-0.30 + 0.30 * idx, 0.07 if idx != 1 else -0.08)
+				sc = 0.72
+			elif n > 3:
+				var cols := ceili(n / 2.0)
+				off = Vector2((idx % cols - (cols - 1) / 2.0) * 0.30, ((idx / cols) - 0.5) * 0.34)
+				sc = 0.60
+			out[ids[idx]] = {"off": off, "sc": sc}
+	return out
+
+
+func _slot(slots: Dictionary, key: String) -> Dictionary:
+	return slots.get(key, {"off": Vector2.ZERO, "sc": 1.0})
+
+
+func _robot_pos(lay: Dictionary, rb: Dictionary, slots: Dictionary) -> Vector2:
+	return _robot_center(lay, rb) + _slot(slots, "r" + str(rb.id)).off * lay.cell
+
+
+func _robot_rect(lay: Dictionary, rb: Dictionary, slots := {}) -> Rect2:
+	var sl: Dictionary = _slot(slots, "r" + str(rb.id))
+	var s: float = lay.cell * 0.7 * sl.sc
+	return Rect2(_robot_pos(lay, rb, slots) - Vector2(s, s) / 2.0, Vector2(s, s))
 
 
 func _gui_input(event: InputEvent) -> void:
 	if world == null:
 		return
 	var lay := _layout()
+	var slots := _slots()
 	if event is InputEventMouseMotion:
 		var h := -1
 		for i in world.robots.size():
-			if _robot_rect(lay, world.robots[i]).grow(6.0).has_point(event.position):
+			if _robot_rect(lay, world.robots[i], slots).grow(6.0).has_point(event.position):
 				h = i
 		if h != hover:
 			hover = h
@@ -85,9 +194,10 @@ func _gui_input(event: InputEvent) -> void:
 			queue_redraw()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		for i in world.robots.size():
-			if _robot_rect(lay, world.robots[i]).grow(6.0).has_point(event.position):
+			if _robot_rect(lay, world.robots[i], slots).grow(6.0).has_point(event.position):
 				robot_clicked.emit(world.robots[i].id)
 				return
+		background_clicked.emit()
 
 
 # ---------- petits outils de dessin ----------
@@ -134,32 +244,40 @@ func _rooms(l: int) -> Array:
 func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	var lay := _layout()
-	var l: int = lay.l
-	var k: int = lay.k
-	var cell: float = lay.cell
 	var lamps: Array = []
 	draw_rect(Rect2(Vector2.ZERO, size), C_GRASS)
 	_draw_outside(lay, lamps)
 	_draw_warehouse(lay, font)
+	var slots := _slots()
+	if world != null:
+		for j in world.intruders.size():
+			if world.intruders[j].state != "attente":
+				_draw_thief(lay, world.intruders[j], _slot(slots, "t" + str(j)))
+		for i in world.robots.size():
+			_draw_robot(lay, world.robots[i], i == hover, _slot(slots, "r" + str(world.robots[i].id)))
+	_update_night(lay, lamps, slots)
+	_hud.queue_redraw()
+
+
+## Noms, « clic : programmer » et cerveau : par-dessus la nuit, pour rester lisibles.
+func _draw_hud() -> void:
 	if world == null:
 		return
-	for it in world.intruders:
-		if it.state != "attente":
-			_draw_thief(lay, it)
-	for i in world.robots.size():
-		_draw_robot(lay, world.robots[i], i == hover)
-	_draw_night(lay, lamps)
-	# étiquettes et cerveau par-dessus la nuit, pour rester lisibles
+	var font := ThemeDB.fallback_font
+	var lay := _layout()
+	var cell: float = lay.cell
+	var slots := _slots()
 	for i in world.robots.size():
 		var rb: Dictionary = world.robots[i]
-		var c := _robot_center(lay, rb)
+		var sl: Dictionary = _slot(slots, "r" + str(rb.id))
+		var c: Vector2 = _robot_pos(lay, rb, slots)
 		var broken: bool = rb.hs
 		if rb.vm.thinking and not broken:
-			draw_texture_rect(_brain(), Rect2(c + Vector2(cell * 0.12, -cell * 0.95), Vector2(cell * 0.7, cell * 0.7)), false)
-		draw_string(font, Vector2(c.x - cell, c.y + cell * 0.62), String(rb.nom) + (" (HS)" if broken else ""),
+			_hud.draw_texture_rect(_brain(), Rect2(c + Vector2(cell * 0.10, -cell * (0.55 + 0.4 * sl.sc)), Vector2(cell * 0.7, cell * 0.7) * sl.sc), false)
+		_hud.draw_string(font, Vector2(c.x - cell, c.y + cell * (0.40 + 0.22 * sl.sc)), String(rb.nom) + (" (HS)" if broken else ""),
 			HORIZONTAL_ALIGNMENT_CENTER, cell * 2.0, 13, Color(1.0, 0.55, 0.55) if broken else Color(1, 1, 1, 0.95))
 		if i == hover:
-			draw_string(font, Vector2(c.x - cell * 1.5, c.y - cell * 0.62), "clic : programmer",
+			_hud.draw_string(font, Vector2(c.x - cell * 1.5, c.y - cell * 0.62), "clic : programmer",
 				HORIZONTAL_ALIGNMENT_CENTER, cell * 3.0, 13, Color(1, 1, 1, 0.95))
 
 
@@ -237,14 +355,6 @@ func _draw_warehouse(lay: Dictionary, font: Font) -> void:
 			var rc := _cell_rect(lay, c, r)
 			draw_rect(rc, C_FLOOR)
 			draw_rect(rc, C_TILE, false, 1.0)
-	# couloir
-	for i in l:
-		var rc := _cell_rect(lay, k + i, RAIL_ROW)
-		draw_rect(rc, C_CORRIDOR)
-		draw_rect(rc, C_TILE.lightened(0.1), false, 1.0)
-		draw_rect(Rect2(rc.position + Vector2(0, 2), Vector2(cell, 3)), Color(0.85, 0.70, 0.20, 0.8))
-		draw_rect(Rect2(rc.position + Vector2(0, cell - 5), Vector2(cell, 3)), Color(0.85, 0.70, 0.20, 0.8))
-		draw_string(font, rc.position + Vector2(4.0, cell - 8.0), str(i), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0, 0, 0, 0.45))
 	# étagères au fond de chaque salle (rangée du haut et du bas)
 	for room in rooms:
 		for j in room.w:
@@ -336,9 +446,9 @@ func _bob(prev: int, pos: int, cell: float) -> float:
 
 
 ## Le vigile : robot à casquette, visière lumineuse et lampe de poche tenue du côté où il regarde.
-func _draw_robot(lay: Dictionary, rb: Dictionary, hovered: bool) -> void:
-	var u: float = lay.cell * 1.12  # les personnages dépassent un peu de leur case
-	var c := _robot_center(lay, rb)
+func _draw_robot(lay: Dictionary, rb: Dictionary, hovered: bool, slot := {"off": Vector2.ZERO, "sc": 1.0}) -> void:
+	var u: float = lay.cell * 1.12 * slot.sc  # les personnages dépassent un peu de leur case
+	var c: Vector2 = _robot_center(lay, rb) + slot.off * lay.cell
 	var f: float = float(rb.facing)
 	var broken: bool = rb.hs
 	var b := _bob(rb.prev, rb.pos, u)
@@ -387,13 +497,13 @@ func _draw_robot(lay: Dictionary, rb: Dictionary, hovered: bool) -> void:
 
 
 ## L'intrus : voleur à pull rayé et masque ; assommé, il est allongé avec des étoiles.
-func _draw_thief(lay: Dictionary, it: Dictionary) -> void:
-	var u: float = lay.cell * 1.12
+func _draw_thief(lay: Dictionary, it: Dictionary, slot := {"off": Vector2.ZERO, "sc": 1.0}) -> void:
+	var u: float = lay.cell * 1.12 * slot.sc
 	var cell: float = lay.cell
 	var p: float = float(it.pos)
 	if it.state == "actif":
 		p = _smooth(it.prev, it.pos)
-	var c := Vector2(lay.x0 + (lay.k + p + 0.5) * cell, lay.y0 + (RAIL_ROW + 0.5) * cell)
+	var c: Vector2 = Vector2(lay.x0 + (lay.k + p + 0.5) * cell, lay.y0 + (RAIL_ROW + 0.5) * cell) + slot.off * cell
 	var f: float = float(it.dir)
 	var b := _bob(it.prev, it.pos, u) if it.state == "actif" else 0.0
 	var down: bool = it.state == "arrete"
@@ -423,48 +533,44 @@ func _draw_thief(lay: Dictionary, it: Dictionary) -> void:
 			draw_circle(c + Vector2(cos(a) * u * 0.22, -u * 0.12 + sin(a) * u * 0.06), u * 0.035, Color(1.0, 0.90, 0.30))
 
 
-## La nuit : l'extérieur est un peu assombri, l'intérieur beaucoup, sauf la case du robot et celle
-## qu'éclaire sa lampe. Les lampadaires éclairent la pelouse.
-func _draw_night(lay: Dictionary, lamps: Array) -> void:
+## La nuit : le calque d'obscurité (shader) reçoit la zone de l'entrepôt, les lampes de poche
+## des vigiles (un faisceau sur la case devant eux) et les lampadaires.
+func _update_night(lay: Dictionary, lamps: Array, slots: Dictionary) -> void:
 	var cell: float = lay.cell
-	var k: int = lay.k
-	var l: int = lay.l
-	var night := Color(0.02, 0.03, 0.08)
-	var box := Rect2(_cell_rect(lay, 2, 1).position, Vector2(cell * (l + 2), cell * (ROWS - 2)))
-	var out := Color(night, 0.30)
-	draw_rect(Rect2(0, 0, size.x, box.position.y), out)
-	draw_rect(Rect2(0, box.end.y, size.x, size.y - box.end.y), out)
-	draw_rect(Rect2(0, box.position.y, box.position.x, box.size.y), out)
-	draw_rect(Rect2(box.end.x, box.position.y, size.x - box.end.x, box.size.y), out)
-	var lit: Dictionary = {}
-	for rb in world.robots:
-		if rb.hs:
-			continue
-		lit[k + rb.pos] = true
-		lit[k + rb.pos + rb.facing] = true
-	for r in range(1, ROWS - 1):
-		for c in range(2, k + l + 1):
-			var rc := _cell_rect(lay, c, r)
-			if r == RAIL_ROW and lit.has(c):
-				draw_rect(rc, Color(night, 0.06))
-				draw_rect(rc, Color(1.0, 0.88, 0.55, 0.13))
-			else:
-				draw_rect(rc, Color(night, 0.55))
-	# faisceaux des lampes de poche
-	for rb in world.robots:
-		if rb.hs:
-			continue
-		var f: float = float(rb.facing)
-		var c := _robot_center(lay, rb)
-		var o := c + Vector2(f * cell * 0.42, cell * 0.08)
-		var far := o + Vector2(f * cell * 1.1, 0.0)
-		draw_polygon(
-			PackedVector2Array([o, far + Vector2(0, -cell * 0.45), far + Vector2(0, cell * 0.45)]),
-			PackedColorArray([Color(1.0, 0.93, 0.62, 0.38), Color(1.0, 0.93, 0.62, 0.0), Color(1.0, 0.93, 0.62, 0.0)]))
-	# halos des lampadaires
-	for lp in lamps:
-		for j in 16:
-			draw_circle(lp, cell * (2.4 - j * 0.14), Color(1.0, 0.90, 0.55, 0.018))
+	var mat: ShaderMaterial = _night.material
+	var box := Rect2(_cell_rect(lay, 2, 1).position, Vector2(cell * (lay.l + 2), cell * (ROWS - 2)))
+	mat.set_shader_parameter("box", Vector4(box.position.x, box.position.y, box.size.x, box.size.y))
+	mat.set_shader_parameter("cell", cell)
+	var pos := PackedVector2Array()
+	var dirs := PackedVector2Array()
+	var bodies := PackedVector2Array()
+	if world != null:
+		for rb in world.robots:
+			if rb.hs or pos.size() >= 8:
+				continue
+			var c: Vector2 = _robot_pos(lay, rb, slots)
+			var f := float(rb.facing)
+			pos.append(c + Vector2(f * cell * 0.42, cell * 0.08))
+			dirs.append(Vector2(f, 0.0))
+			bodies.append(c)
+	var n := pos.size()
+	while pos.size() < 8:
+		pos.append(Vector2.ZERO)
+		dirs.append(Vector2.RIGHT)
+		bodies.append(Vector2.ZERO)
+	mat.set_shader_parameter("count", n)
+	mat.set_shader_parameter("pos", pos)
+	mat.set_shader_parameter("dir", dirs)
+	mat.set_shader_parameter("body", bodies)
+	var lp := PackedVector2Array()
+	for l in lamps:
+		if lp.size() < 32:
+			lp.append(l)
+	var ln := lp.size()
+	while lp.size() < 32:
+		lp.append(Vector2.ZERO)
+	mat.set_shader_parameter("lamp_count", ln)
+	mat.set_shader_parameter("lamp", lp)
 
 
 ## Petit cerveau (dessiné en SVG) : affiché quand la réflexion prend le pas sur une action.

@@ -143,6 +143,7 @@ func _build_ui() -> void:
 	view.inset_top = TOP_H  # l'entrepôt se centre entre les deux barres
 	view.inset_bottom = BOTTOM_H
 	view.robot_clicked.connect(_open_editor)
+	view.background_clicked.connect(_close_editor)
 	add_child(view)
 
 	_build_editor_panel()
