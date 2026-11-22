@@ -15,7 +15,6 @@
   "ecart": 9,
   "periode": 4
  },
- "duree_max": 220,
  "syntaxe": [
   "boucle_while",
   "conditions",

@@ -34,7 +34,6 @@ var status := "en_cours"  # en_cours | victoire | defaite
 var events: Array = []  # robots tombés en panne (HS) pendant un tick : {id, nom, line, msg}
 var message := ""
 var seed_used := 0
-var duree_max := 150
 
 
 ## codes : {id du robot -> code compilé}. Un robot sans code reste immobile ; un code `null`
@@ -49,7 +48,6 @@ func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 		length = rng.randi_range(int(l[0]), int(l[1]))
 	else:
 		length = int(l)
-	duree_max = int(level.get("duree_max", 150))
 	var cfg: Dictionary = level.get("intrus", {})
 	var n := int(cfg.get("nombre", 1))
 	var ap: Array = cfg.get("apparition", [2, 6])
@@ -155,6 +153,3 @@ func tick() -> void:
 	if all_caught:
 		status = "victoire"
 		message = "Tous les intrus ont été arrêtés."
-	elif tick_n >= duree_max:
-		status = "defaite"
-		message = "Temps écoulé : tous les intrus n'ont pas été arrêtés."

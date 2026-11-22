@@ -14,7 +14,6 @@
   ],
   "periode": 4
  },
- "duree_max": 120,
  "syntaxe": [
   "boucle_while",
   "conditions"
