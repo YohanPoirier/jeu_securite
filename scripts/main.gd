@@ -470,6 +470,9 @@ func _drain_prints() -> void:
 		for line in vm.printed:
 			_log("[color=#9fd0ff]%s > %s[/color]" % [rb.nom, str(line).replace("[", "[lb]")])
 		vm.printed.clear()
+		for n in vm.notices:
+			_log("[color=gray]%s : %s[/color]" % [rb.nom, n])
+		vm.notices.clear()
 
 
 func _finish() -> void:

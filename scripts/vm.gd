@@ -2,7 +2,9 @@ extends RefCounted
 ## Machine virtuelle d'UN robot. step() est appelée une fois par tick.
 ##  - Les capteurs (coût 0) s'exécutent instantanément et le programme continue dans le même tick.
 ##  - Une action de coût c occupe le robot pendant c ticks.
-##  - Si le programme exécute trop d'instructions sans agir : erreur « boucle infinie ? ».
+##  - Si le programme exécute trop d'instructions sans agir (boucle sans action), ce n'est pas une
+##    erreur : le robot attend simplement jusqu'au tick suivant, et la partie finit par une victoire
+##    ou une défaite. Un avis est ajouté une seule fois dans `notices`.
 
 const Comp = preload("res://scripts/compiler.gd")
 const PyOps = preload("res://scripts/pyops.gd")
@@ -17,6 +19,8 @@ var error: Dictionary = {}
 var host = null
 var builtins: Array = []
 var printed: Array = []
+var notices: Array = []  # avis non bloquants (affichés dans la console)
+var spin_notified := false
 var budget := 2000
 var last_line := 0
 var robot_ref = null  # le robot (dictionnaire du monde) qui exécute cette VM
@@ -132,7 +136,10 @@ func step() -> void:
 			if res.cost > 0:
 				wait = res.cost - 1
 				return
-	_fail("Ton programme a exécuté plus de %d instructions d'affilée sans que le robot n'agisse : boucle infinie ?" % budget)
+	# budget épuisé sans action : le robot attend, on reprendra ici au tick suivant
+	if not spin_notified:
+		spin_notified = true
+		notices.append("le programme tourne sans que le robot n'agisse : le robot attend.")
 
 
 func _make_range(args: Array):

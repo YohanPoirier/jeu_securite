@@ -107,11 +107,12 @@ func test_errors() -> void:
 	expect_error("affectation_invalide", "3 = x\n", 1, "affecter")
 	expect_error("caractere", "x = 3 $ 4\n", 1, "Caractère")
 	expect_error("texte_non_termine", "print(\"abc)\n", 1, "Texte non terminé")
-	# boucle infinie sans action
+	# boucle sans action : pas une erreur, le robot attend (un seul avis)
 	var res := Interp.compile("while True:\n    pass\n", ALL_SYNTAX, [], ALL_BUILTINS)
 	var vm := VM.new(res.code, null, ALL_BUILTINS)
 	vm.step()
-	ok(not vm.error.is_empty() and vm.error.msg.contains("boucle infinie"), "erreur/boucle_infinie")
+	vm.step()
+	ok(vm.error.is_empty() and vm.notices.size() == 1, "boucle sans action = attente, pas une erreur")
 
 
 # ---------- 3. déblocage progressif ----------
@@ -192,6 +193,19 @@ func test_levels() -> void:
 			elif first_loss == "":
 				first_loss = "graine %d : %s %s" % [s, w.status, w.message]
 		ok(wins == 60, "niveau/%s/solution gagne sur 60 graines" % id, "(%d/60) %s" % [wins, first_loss])
+		# le code de départ ne doit jamais produire d'erreur : la partie se termine par victoire ou défaite
+		var start_code := {}
+		for spec in lv.robots:
+			start_code[spec.id] = lv.code_initial
+		var start_compiled := compile_all(lv, start_code)
+		ok(not start_compiled.is_empty(), "niveau/%s/code de départ compile" % id)
+		var start_bad := ""
+		for s in range(1, 41):
+			var w0 := play(lv, start_compiled, s)
+			if w0.status != "victoire" and w0.status != "defaite":
+				start_bad = "graine %d : %s %s" % [s, w0.status, w0.message]
+				break
+		ok(start_bad == "", "niveau/%s/code de départ finit par victoire ou défaite" % id, start_bad)
 		# des robots qui ne font rien ne doivent PAS gagner à tous les coups
 		var idle := {}
 		for spec in lv.robots:
