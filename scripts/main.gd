@@ -1,10 +1,10 @@
 extends Control
-## Interface épurée : l'entrepôt en plein écran et trois zones opaques par-dessus.
-##   - en haut : une barre fine (nom du niveau) et un menu déroulant (niveau, scénario, graine) ;
-##     il se déroule tout seul au début d'un niveau pour montrer le scénario ;
-##   - en bas : lancement du code (Lancer, Arrêter, vitesse) et résultat ;
-##   - à droite, collé au bord : l'éditeur du robot sur lequel on a cliqué (un éditeur par robot),
-##     avec la console en dessous.
+## Interface épurée : l'entrepôt en plein écran et des zones opaques par-dessus.
+##   - en haut : une barre fine (nom du niveau, bouton « Sorties ») et un menu déroulant
+##     (niveau, scénario) ; il se déroule tout seul au début d'un niveau ;
+##   - en bas : lancement du code (Lancer + choix de l'attaque, Arrêter, vitesse) et résultat ;
+##   - à gauche, collé au bord : l'éditeur du robot sur lequel on a cliqué (un éditeur par robot) ;
+##   - à droite, collé au bord : les sorties (print, erreurs), toujours avec le nom du robot.
 
 const Interp = preload("res://scripts/interpreter.gd")
 const World = preload("res://scripts/world.gd")
@@ -14,7 +14,10 @@ const SAVE_PATH := "user://progression.cfg"
 const TOP_H := 40
 const BOTTOM_H := 102
 const SPEEDS := [["Lent  (×½)", 3], ["Normal  (×1)", 6], ["Rapide  (×2)", 12], ["Très rapide  (×4)", 24]]
+const GREEN := Color(0.16, 0.50, 0.28)
+const REPLAY_COLOR := Color(1.0, 0.82, 0.45)
 const EDITOR_W := 520
+const OUT_W := 360
 const MENU_W := 640
 const PANEL_BG := Color(0.09, 0.10, 0.13)
 const BORDER := Color(0.20, 0.22, 0.27)
@@ -30,8 +33,11 @@ var editors: Dictionary = {}  # id du robot -> CodeEdit
 var marks: Dictionary = {}  # id du robot -> ligne surlignée
 var open_robot := ""
 var tps := 6  # ticks par seconde
-var debug_mode := false
-var last_attack := -1
+var sim_paused := false  # vrai tant que le choix de vitesse est ouvert
+var attacks: Dictionary = {}  # id du niveau -> liste des attaques déjà jouées (n° 1, 2, 3...)
+var attack_choice := -1  # -1 : nouvelle attaque ; k : rejouer l'attaque n° k+1
+var run_replay := false
+var out_shown := false
 
 var view
 var menu_btn: Button
@@ -42,10 +48,10 @@ var level_select: OptionButton
 var unlock_all: CheckBox
 var btn_run: Button
 var btn_stop: Button
-var debug_check: CheckButton
 var speed_btn: MenuButton
-var attack_box: HBoxContainer
-var attack_edit: LineEdit
+var attack_btn: MenuButton
+var out_btn: Button
+var out_panel: PanelContainer
 var attack_label: Label
 var tick_label: Label
 var status_label: Label
@@ -127,6 +133,7 @@ func _build_ui() -> void:
 	add_child(view)
 
 	_build_editor_panel()
+	_build_output_panel()
 	_build_bottom_bar()
 	_build_menu()
 	_refresh_level_items()
@@ -147,6 +154,12 @@ func _build_menu() -> void:
 	title_label = Label.new()
 	title_label.add_theme_font_size_override("font_size", 16)
 	th.add_child(title_label)
+	th.add_child(_spacer())
+	out_btn = Button.new()
+	out_btn.text = "▤ Sorties"
+	out_btn.tooltip_text = "Affiche ou masque les sorties des programmes (print et erreurs)"
+	out_btn.pressed.connect(func(): _set_out(not out_panel.visible))
+	th.add_child(out_btn)
 
 	# menu déroulant, sous la barre, à gauche
 	menu_panel = _panel()
@@ -177,24 +190,31 @@ func _build_menu() -> void:
 	mv.add_child(unlock_all)
 
 
-## Bouton plein, de couleur, plus visible que les boutons par défaut.
-func _styled_button(text: String, color: Color) -> Button:
-	var btn := Button.new()
-	btn.text = text
-	btn.custom_minimum_size = Vector2(140, 46)
-	btn.add_theme_font_size_override("font_size", 18)
-	for state in ["normal", "hover", "pressed", "disabled"]:
+## Donne à un bouton un fond plein de couleur, à angles arrondis.
+func _apply_colors(btn: BaseButton, color: Color) -> void:
+	for state in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = color
 		if state == "hover":
 			sb.bg_color = color.lightened(0.15)
-		elif state == "pressed":
+		elif state == "pressed" or state == "hover_pressed":
 			sb.bg_color = color.darkened(0.2)
 		elif state == "disabled":
 			sb.bg_color = color.darkened(0.5)
 		sb.set_corner_radius_all(6)
 		sb.set_content_margin_all(8)
 		btn.add_theme_stylebox_override(state, sb)
+	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	btn.flat = false  # les MenuButton sont plats par défaut
+
+
+## Bouton plein, de couleur, plus visible que les boutons par défaut.
+func _styled_button(text: String, color: Color) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.custom_minimum_size = Vector2(140, 46)
+	btn.add_theme_font_size_override("font_size", 18)
+	_apply_colors(btn, color)
 	return btn
 
 
@@ -219,11 +239,6 @@ func _build_bottom_bar() -> void:
 	attack_label = _label("")
 	attack_label.modulate = Color(1, 1, 1, 0.6)
 	info.add_child(attack_label)
-	debug_check = CheckButton.new()
-	debug_check.text = "Mode débogage"
-	debug_check.tooltip_text = "Rejoue toujours la même attaque, pour tester ton programme."
-	debug_check.toggled.connect(_on_debug_toggled)
-	info.add_child(debug_check)
 	tick_label = _label("")
 	tick_label.modulate = Color(1, 1, 1, 0.6)
 	info.add_child(tick_label)
@@ -232,51 +247,42 @@ func _build_bottom_bar() -> void:
 	var bh := HBoxContainer.new()
 	bh.add_theme_constant_override("separation", 12)
 	bv.add_child(bh)
-	btn_run = _styled_button("▶  Lancer", Color(0.16, 0.50, 0.28))
+	# Lancer + petite flèche pour choisir l'attaque (nouvelle ou ancienne)
+	var run_box := HBoxContainer.new()
+	run_box.add_theme_constant_override("separation", 2)
+	bh.add_child(run_box)
+	btn_run = _styled_button("▶  Lancer", GREEN)
 	btn_run.pressed.connect(_on_run)
-	bh.add_child(btn_run)
+	run_box.add_child(btn_run)
+	attack_btn = MenuButton.new()
+	attack_btn.text = "▲"
+	attack_btn.custom_minimum_size = Vector2(34, 46)
+	attack_btn.add_theme_font_size_override("font_size", 14)
+	attack_btn.tooltip_text = "Choisir l'attaque : une nouvelle, ou une ancienne à rejouer pour déboguer"
+	_apply_colors(attack_btn, GREEN.darkened(0.15))
+	attack_btn.get_popup().id_pressed.connect(_on_attack_chosen)
+	run_box.add_child(attack_btn)
 	btn_stop = _styled_button("■  Arrêter", Color(0.45, 0.20, 0.20))
 	btn_stop.custom_minimum_size = Vector2(120, 46)
 	btn_stop.pressed.connect(_on_stop)
 	bh.add_child(btn_stop)
-	bh.add_child(VSeparator.new())
-	# vitesse : un seul petit bouton à icône de compteur ; les choix n'apparaissent qu'au clic
+	# vitesse : petit bouton de couleur à icône de compteur ; les choix n'apparaissent qu'au clic,
+	# et la simulation est en pause tant qu'on n'a pas choisi
 	speed_btn = MenuButton.new()
 	speed_btn.icon = _gauge_icon()
 	speed_btn.expand_icon = false
 	speed_btn.custom_minimum_size = Vector2(46, 46)
 	speed_btn.tooltip_text = "Vitesse de la simulation"
-	for state in ["normal", "hover", "pressed"]:
-		var box := StyleBoxFlat.new()
-		box.bg_color = Color(0.17, 0.19, 0.24) if state != "hover" else Color(0.24, 0.27, 0.34)
-		box.border_color = BORDER
-		box.set_border_width_all(1)
-		box.set_corner_radius_all(6)
-		speed_btn.add_theme_stylebox_override(state, box)
+	_apply_colors(speed_btn, Color(0.20, 0.38, 0.62))
 	var pm := speed_btn.get_popup()
 	for i in SPEEDS.size():
 		pm.add_radio_check_item(SPEEDS[i][0], i)
 		pm.set_item_checked(i, SPEEDS[i][1] == tps)
 	pm.id_pressed.connect(_on_speed_chosen)
+	pm.about_to_popup.connect(func(): sim_paused = true)
+	pm.popup_hide.connect(func(): sim_paused = false)
 	bh.add_child(speed_btn)
-	bh.add_child(_spacer())
-
-	# mode débogage : rejouer la même attaque
-	attack_box = HBoxContainer.new()
-	attack_box.add_theme_constant_override("separation", 8)
-	attack_box.visible = false
-	bh.add_child(attack_box)
-	attack_box.add_child(_label("Attaque n°"))
-	attack_edit = LineEdit.new()
-	attack_edit.custom_minimum_size = Vector2(90, 0)
-	attack_edit.placeholder_text = "?"
-	attack_edit.tooltip_text = "Chaque numéro correspond à une attaque précise : le même numéro rejoue exactement la même attaque."
-	attack_box.add_child(attack_edit)
-	var b_new := Button.new()
-	b_new.text = "Autre attaque"
-	b_new.custom_minimum_size = Vector2(0, 40)
-	b_new.pressed.connect(func(): attack_edit.text = str(_new_attack_id()))
-	attack_box.add_child(b_new)
+	_rebuild_attack_menu()
 
 
 ## Petite icône de compteur (cadran et aiguille), dessinée en SVG.
@@ -298,24 +304,49 @@ func _on_speed_chosen(id: int) -> void:
 	speed_btn.tooltip_text = "Vitesse : %s" % String(SPEEDS[id][0]).replace("  ", " ")
 
 
+# ---------- attaques ----------
+
 func _new_attack_id() -> int:
 	return randi() % 100000
 
 
-func _on_debug_toggled(on: bool) -> void:
-	debug_mode = on
-	attack_box.visible = on
-	attack_label.visible = not on
-	if on and last_attack >= 0:
-		attack_edit.text = str(last_attack)  # on rejoue l'attaque qu'on vient de voir
+## Attaques déjà jouées sur le niveau courant (numérotées 1, 2, 3... dans l'ordre).
+func _level_attacks() -> Array:
+	var id: String = levels[cur].id
+	if not attacks.has(id):
+		attacks[id] = []
+	return attacks[id]
+
+
+func _rebuild_attack_menu() -> void:
+	var pm := attack_btn.get_popup()
+	pm.clear()
+	pm.add_radio_check_item("Nouvelle attaque", 0)
+	var n := _level_attacks().size() if not levels.is_empty() else 0
+	if n > 0:
+		pm.add_separator("Anciennes attaques")
+	for k in n:
+		pm.add_radio_check_item("Attaque %d" % (k + 1), k + 1)
+	for i in pm.item_count:
+		if not pm.is_item_separator(i):
+			pm.set_item_checked(i, pm.get_item_id(i) == attack_choice + 1)
+
+
+func _on_attack_chosen(id: int) -> void:
+	attack_choice = id - 1
+	_rebuild_attack_menu()
+	if attack_choice >= 0:
+		_set_status("Attaque %d : le niveau ne sera pas validé, c'est juste pour déboguer." % id, REPLAY_COLOR)
+	else:
+		_set_status("", Color.WHITE)
 
 
 func _build_editor_panel() -> void:
-	# collé au bord droit, entre la barre du haut et celle du bas
+	# collé au bord gauche, entre la barre du haut et celle du bas
 	editor_panel = _panel()
-	editor_panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
-	editor_panel.offset_left = -EDITOR_W
-	editor_panel.offset_right = 0
+	editor_panel.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	editor_panel.offset_left = 0
+	editor_panel.offset_right = EDITOR_W
 	editor_panel.offset_top = TOP_H
 	editor_panel.offset_bottom = -BOTTOM_H
 	editor_panel.visible = false
@@ -341,11 +372,46 @@ func _build_editor_panel() -> void:
 	editor_holder = VBoxContainer.new()
 	editor_holder.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	ev.add_child(editor_holder)
+
+
+## Fenêtre des sorties, collée au bord droit : print, erreurs et remarques, avec le nom du robot.
+func _build_output_panel() -> void:
+	out_panel = _panel()
+	out_panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	out_panel.offset_left = -OUT_W
+	out_panel.offset_right = 0
+	out_panel.offset_top = TOP_H
+	out_panel.offset_bottom = -BOTTOM_H
+	out_panel.visible = false
+	add_child(out_panel)
+	var ov := VBoxContainer.new()
+	out_panel.add_child(ov)
+	var oh := HBoxContainer.new()
+	ov.add_child(oh)
+	var t := _label("Sorties")
+	t.add_theme_font_size_override("font_size", 16)
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	oh.add_child(t)
+	var b_clear := Button.new()
+	b_clear.text = "Effacer"
+	b_clear.flat = true
+	b_clear.pressed.connect(func(): console.clear())
+	oh.add_child(b_clear)
+	var b_close := Button.new()
+	b_close.text = "✕"
+	b_close.flat = true
+	b_close.pressed.connect(func(): _set_out(false))
+	oh.add_child(b_close)
 	console = RichTextLabel.new()
 	console.bbcode_enabled = true
 	console.scroll_following = true
-	console.custom_minimum_size = Vector2(0, 90)
-	ev.add_child(console)
+	console.selection_enabled = true
+	console.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	ov.add_child(console)
+
+
+func _set_out(show: bool) -> void:
+	out_panel.visible = show
 
 
 func _make_editor() -> CodeEdit:
@@ -433,6 +499,11 @@ func _select_level(idx: int) -> void:
 		editor_holder.add_child(e)
 		editors[spec.id] = e
 	console.clear()
+	out_shown = false
+	out_panel.visible = false
+	attack_choice = -1
+	_rebuild_attack_menu()
+	attack_label.text = ""
 	status_label.text = ""
 	world = World.new(lv, {}, 0)
 	view.world = world
@@ -481,28 +552,33 @@ func _on_run() -> void:
 	_save_editors()
 	_save_progress()
 	_clear_marks()
+	console.clear()
+	out_shown = false
 	var compiled := {}
 	for id in editors:
 		var res := Interp.compile(editors[id].text, lv.get("syntaxe", []), lv.get("api", []), lv.get("builtins", []))
 		if not res.ok:
-			console.clear()
-			_log("[color=tomato]%s — ligne %d : %s[/color]" % [_robot_name(id), res.line, res.msg])
+			_log("[color=tomato]%s — ligne %d : %s[/color]" % [_robot_name(id), res.line, _esc(res.msg)], true)
 			_set_status("Erreur dans le programme de %s" % _robot_name(id), Color.TOMATO)
 			_open_editor(id)
 			_mark_line(id, res.line)
 			return
 		compiled[id] = res.code
+	var list := _level_attacks()
 	var attack: int
-	if debug_mode and attack_edit.text.strip_edges().is_valid_int():
-		attack = attack_edit.text.strip_edges().to_int()  # même numéro = même attaque
+	var number: int
+	run_replay = attack_choice >= 0 and attack_choice < list.size()
+	if run_replay:
+		attack = list[attack_choice]  # même numéro = exactement la même attaque
+		number = attack_choice + 1
+		_set_status("Attaque %d : le niveau ne sera pas validé, c'est juste pour déboguer." % number, REPLAY_COLOR)
 	else:
 		attack = _new_attack_id()
-	last_attack = attack
-	attack_edit.text = str(attack)
-	attack_label.text = "Attaque n° %d" % attack
-	console.clear()
-	_log("[color=gray]Attaque n° %d[/color]" % attack)
-	_set_status("", Color.WHITE)
+		list.append(attack)
+		number = list.size()
+		_rebuild_attack_menu()
+		_set_status("", Color.WHITE)
+	attack_label.text = "Attaque %d%s" % [number, " (rejeu)" if run_replay else ""]
 	world = World.new(lv, compiled, attack)
 	view.world = world
 	view.alpha = 1.0
@@ -518,13 +594,12 @@ func _set_status(t: String, c: Color) -> void:
 
 func _set_running(r: bool) -> void:
 	running = r
+	attack_btn.disabled = r
 	for id in editors:
 		editors[id].editable = not r
 
 
 func _on_stop() -> void:
-	if running:
-		_log("[color=gray]Arrêté.[/color]")
 	_stop()
 
 
@@ -534,7 +609,7 @@ func _stop() -> void:
 
 
 func _process(delta: float) -> void:
-	if not running or world == null:
+	if not running or world == null or sim_paused:
 		return
 	var interval := 1.0 / float(tps)
 	timer += delta
@@ -554,14 +629,19 @@ func _process(delta: float) -> void:
 	view.queue_redraw()
 
 
+## Échappe les crochets pour que le texte ne soit pas pris pour du BBCode.
+func _esc(t: String) -> String:
+	return t.replace("[", "[lb]")
+
+
 func _drain_prints() -> void:
 	for rb in world.robots:
 		var vm = rb.vm
 		for line in vm.printed:
-			_log("[color=#9fd0ff]%s > %s[/color]" % [rb.nom, str(line).replace("[", "[lb]")])
+			_log("[color=#9fd0ff]%s ›[/color] %s" % [rb.nom, _esc(str(line))])
 		vm.printed.clear()
 		for n in vm.notices:
-			_log("[color=gray]%s : %s[/color]" % [rb.nom, n])
+			_log("[color=gray]%s : %s[/color]" % [rb.nom, _esc(str(n))])
 		vm.notices.clear()
 
 
@@ -569,30 +649,36 @@ func _finish() -> void:
 	_set_running(false)
 	view.alpha = 1.0
 	view.queue_redraw()
+	var note := " (rejeu : niveau non validé)" if run_replay else ""
 	match world.status:
 		"victoire":
-			var msg := "Victoire !"
-			if cur + 1 == unlocked and unlocked < levels.size():
-				unlocked += 1
-				msg += " Niveau %d débloqué." % unlocked
-				_refresh_level_items()
-			_set_status(msg, Color.LIGHT_GREEN)
-			_log("[color=lightgreen]%s[/color]" % world.message)
-			_save_progress()
+			if run_replay:
+				_set_status("Victoire" + note, REPLAY_COLOR)
+			else:
+				var msg := "Victoire !"
+				if cur + 1 == unlocked and unlocked < levels.size():
+					unlocked += 1
+					msg += " Niveau %d débloqué." % unlocked
+					_refresh_level_items()
+				_set_status(msg, Color.LIGHT_GREEN)
+				_save_progress()
 		"defaite":
-			_set_status("Échec : %s" % world.message, Color.ORANGE)
-			_log("[color=orange]%s[/color] [color=gray](attaque n° %d)[/color]" % [world.message, world.seed_used])
+			_set_status("Échec : %s%s" % [world.message, note], Color.ORANGE)
 		"erreur":
-			_set_status("Erreur dans un programme (voir la console)", Color.TOMATO)
-			_log("[color=tomato]%s[/color]" % world.message)
+			_set_status("Erreur dans un programme (voir les sorties)", Color.TOMATO)
+			_log("[color=tomato]%s[/color]" % _esc(world.message), true)
 			for rb in world.robots:
 				if not rb.vm.error.is_empty():
 					_open_editor(rb.id)
 					_mark_line(rb.id, rb.vm.error.line)
 
 
-func _log(bb: String) -> void:
+## Ajoute une ligne aux sorties ; la fenêtre s'ouvre à la première ligne d'un essai (ou à chaque erreur).
+func _log(bb: String, force := false) -> void:
 	console.append_text(bb + "\n")
+	if force or not out_shown:
+		out_shown = true
+		_set_out(true)
 
 
 # ---------- surlignage de la ligne courante ----------

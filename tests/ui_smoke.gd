@@ -21,8 +21,6 @@ func _init() -> void:
 			print("ÉCHEC : l'éditeur ne s'ouvre pas")
 			fails += 1
 		main.editors[rid].text = main.levels[i].solutions[rid]
-		main.debug_check.button_pressed = true
-		main.attack_edit.text = "7"
 		main._on_run()
 		var guard := 0
 		while main.running and guard < 2000:
@@ -33,14 +31,15 @@ func _init() -> void:
 		print("niveau %d : %s (%s)" % [i + 1, st, main.world.message])
 		if st != "victoire":
 			fails += 1
-	# mode débogage : la même attaque est rejouée à l'identique
+	# anciennes attaques : numérotées 1, 2, 3 ; rejouer l'attaque 1 donne la même chose, sans valider
+	main.attacks.clear()
 	main._select_level(1)
 	main._set_menu(false)
-	main.debug_check.button_pressed = true
 	main.editors["garde"].text = main.levels[1].solutions["garde"]
-	main.attack_edit.text = "123"
 	var traces: Array = []
 	for r in 2:
+		if r == 1:
+			main._on_attack_chosen(1)  # id 1 = attaque n° 1
 		main._on_run()
 		var w1 = main.world
 		var g := 0
@@ -50,6 +49,36 @@ func _init() -> void:
 		traces.append([w1.length, w1.tick_n, w1.status, w1.intruders.map(func(it): return it.dir)])
 	print("rejeu identique : ", traces[0] == traces[1], " ", traces[0])
 	if traces[0] != traces[1]:
+		fails += 1
+	if main._level_attacks().size() != 1 or not main.run_replay:
+		print("ÉCHEC : le rejeu ne doit pas créer de nouvelle attaque")
+		fails += 1
+	print("message rejeu : ", main.status_label.text)
+	# un rejeu ne valide pas le niveau
+	main.unlocked = 2
+	main._select_level(1)
+	main._set_menu(false)
+	main.editors["garde"].text = main.levels[1].solutions["garde"]
+	main._on_run()
+	main._on_attack_chosen(1)
+	main.attack_choice = 0
+	main._stop()
+	var u0: int = main.unlocked
+	main._on_run()
+	var g2 := 0
+	while main.running and g2 < 2000:
+		main._process(0.1)
+		g2 += 1
+	if main.unlocked != u0 or not main.run_replay:
+		print("ÉCHEC : un rejeu ne doit pas débloquer de niveau")
+		fails += 1
+	# la vitesse met en pause tant qu'on n'a pas choisi
+	main.speed_btn.get_popup().about_to_popup.emit()
+	if not main.sim_paused:
+		print("ÉCHEC : le choix de vitesse devrait mettre en pause")
+		fails += 1
+	main.speed_btn.get_popup().popup_hide.emit()
+	if main.sim_paused:
 		fails += 1
 	# vrai clic de souris sur le robot dans l'entrepôt
 	main._select_level(0)
@@ -74,6 +103,7 @@ func _init() -> void:
 	main._on_run()
 	print("éditeur ouvert après erreur : ", main.editor_panel.visible)
 	print("console : ", main.console.get_parsed_text().strip_edges().split("\n")[-1])
-	if not main.editor_panel.visible:
+	if not main.editor_panel.visible or not main.out_panel.visible:
+		print("ÉCHEC : éditeur et sorties devraient s'ouvrir sur une erreur")
 		fails += 1
 	quit(fails)
