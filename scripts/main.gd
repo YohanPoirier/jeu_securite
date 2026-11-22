@@ -13,7 +13,7 @@ const RailView = preload("res://scripts/rail_view.gd")
 const SAVE_PATH := "user://progression.cfg"
 const TOP_H := 40
 const BOTTOM_H := 102
-const SPEEDS := [["×½", 3], ["×1", 6], ["×2", 12], ["×4", 24]]
+const SPEEDS := [["Lent  (×½)", 3], ["Normal  (×1)", 6], ["Rapide  (×2)", 12], ["Très rapide  (×4)", 24]]
 const EDITOR_W := 520
 const MENU_W := 640
 const PANEL_BG := Color(0.09, 0.10, 0.13)
@@ -43,6 +43,7 @@ var unlock_all: CheckBox
 var btn_run: Button
 var btn_stop: Button
 var debug_check: CheckButton
+var speed_btn: MenuButton
 var attack_box: HBoxContainer
 var attack_edit: LineEdit
 var attack_label: Label
@@ -239,29 +240,25 @@ func _build_bottom_bar() -> void:
 	btn_stop.pressed.connect(_on_stop)
 	bh.add_child(btn_stop)
 	bh.add_child(VSeparator.new())
-	var group := ButtonGroup.new()
-	for sp in SPEEDS:
-		var sb := Button.new()
-		sb.text = sp[0]
-		sb.toggle_mode = true
-		sb.button_group = group
-		sb.custom_minimum_size = Vector2(46, 40)
-		sb.tooltip_text = "Vitesse de la simulation"
-		for state in ["normal", "hover", "pressed", "hover_pressed"]:
-			var box := StyleBoxFlat.new()
-			var on: bool = state.ends_with("pressed")
-			box.bg_color = Color(0.20, 0.45, 0.80) if on else Color(0.17, 0.19, 0.24)
-			if state == "hover":
-				box.bg_color = Color(0.24, 0.27, 0.34)
-			box.border_color = BORDER
-			box.set_border_width_all(1)
-			box.set_corner_radius_all(6)
-			box.set_content_margin_all(6)
-			sb.add_theme_stylebox_override(state, box)
-		sb.button_pressed = (sp[1] == tps)
-		var v: int = sp[1]
-		sb.pressed.connect(func(): tps = v)
-		bh.add_child(sb)
+	# vitesse : un seul petit bouton à icône de compteur ; les choix n'apparaissent qu'au clic
+	speed_btn = MenuButton.new()
+	speed_btn.icon = _gauge_icon()
+	speed_btn.expand_icon = false
+	speed_btn.custom_minimum_size = Vector2(46, 46)
+	speed_btn.tooltip_text = "Vitesse de la simulation"
+	for state in ["normal", "hover", "pressed"]:
+		var box := StyleBoxFlat.new()
+		box.bg_color = Color(0.17, 0.19, 0.24) if state != "hover" else Color(0.24, 0.27, 0.34)
+		box.border_color = BORDER
+		box.set_border_width_all(1)
+		box.set_corner_radius_all(6)
+		speed_btn.add_theme_stylebox_override(state, box)
+	var pm := speed_btn.get_popup()
+	for i in SPEEDS.size():
+		pm.add_radio_check_item(SPEEDS[i][0], i)
+		pm.set_item_checked(i, SPEEDS[i][1] == tps)
+	pm.id_pressed.connect(_on_speed_chosen)
+	bh.add_child(speed_btn)
 	bh.add_child(_spacer())
 
 	# mode débogage : rejouer la même attaque
@@ -280,6 +277,25 @@ func _build_bottom_bar() -> void:
 	b_new.custom_minimum_size = Vector2(0, 40)
 	b_new.pressed.connect(func(): attack_edit.text = str(_new_attack_id()))
 	attack_box.add_child(b_new)
+
+
+## Petite icône de compteur (cadran et aiguille), dessinée en SVG.
+func _gauge_icon() -> Texture2D:
+	var svg := """<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24">
+<path d="M3.5 18 A9 9 0 1 1 20.5 18" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+<line x1="12" y1="14.5" x2="16.8" y2="8.2" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+<circle cx="12" cy="14.5" r="1.9" fill="white"/></svg>"""
+	var img := Image.new()
+	img.load_svg_from_string(svg)
+	return ImageTexture.create_from_image(img)
+
+
+func _on_speed_chosen(id: int) -> void:
+	tps = SPEEDS[id][1]
+	var pm := speed_btn.get_popup()
+	for i in SPEEDS.size():
+		pm.set_item_checked(i, i == id)
+	speed_btn.tooltip_text = "Vitesse : %s" % String(SPEEDS[id][0]).replace("  ", " ")
 
 
 func _new_attack_id() -> int:
