@@ -13,7 +13,7 @@ const RailView = preload("res://scripts/rail_view.gd")
 
 const SAVE_PATH := "user://progression.cfg"
 const TOP_H := 40
-const BOTTOM_H := 102
+const BOTTOM_H := 64
 const SPEEDS := [["Lent (×½)", 3], ["Normal (×1)", 6], ["Rapide (×2)", 12], ["Très rapide (×4)", 24]]
 const GREEN := Color(0.16, 0.50, 0.28)
 const ATTACK_TIP := "Attaque à lancer : une nouvelle, ou une ancienne à rejouer pour déboguer"
@@ -66,7 +66,6 @@ var attack_menu: PopupMenu
 var attack_btn: Button
 var out_btn: Button
 var out_panel: PanelContainer
-var status_label: Label
 var editor_panel: PanelContainer
 var editor_title: Label
 var editor_holder: VBoxContainer
@@ -235,15 +234,6 @@ func _build_bottom_bar() -> void:
 	var bv := VBoxContainer.new()
 	bv.add_theme_constant_override("separation", 6)
 	bottom.add_child(bv)
-
-	# ligne du haut : résultat de l'essai, numéro de l'attaque, tick
-	var info := HBoxContainer.new()
-	info.add_theme_constant_override("separation", 14)
-	bv.add_child(info)
-	status_label = _label("")
-	status_label.add_theme_font_size_override("font_size", 16)
-	info.add_child(status_label)
-	info.add_child(_spacer())
 
 	# ligne des commandes
 	var bh := HBoxContainer.new()
@@ -731,7 +721,6 @@ func _restart_level() -> void:
 	out_panel.visible = false
 	attack_choice = -1
 	_rebuild_attack_menu()
-	status_label.text = ""
 	world = World.new(levels[cur], {}, 0)
 	view.world = world
 	view.alpha = 1.0
@@ -811,7 +800,6 @@ func _select_level(idx: int) -> void:
 	out_panel.visible = false
 	attack_choice = -1
 	_rebuild_attack_menu()
-	status_label.text = ""
 	world = World.new(lv, {}, 0)
 	view.world = world
 	view.alpha = 1.0
@@ -861,14 +849,12 @@ func _on_run() -> void:
 	console.clear()
 	_reset_out_count()
 	var compiled := {}
-	var broken: Array = []
 	for id in editors:
 		var res := Interp.compile(editors[id].text, lv.get("syntaxe", []), lv.get("api", []), lv.get("builtins", []))
 		if not res.ok:
 			# le jeu ne s'arrête pas : ce robot est simplement hors service (HS)
 			_log("[color=tomato]%s — ligne %d : %s[/color]" % [_robot_name(id), res.line, _esc(res.msg)])
 			_mark_line(id, res.line, ERROR_LINE)
-			broken.append(_robot_name(id))
 			compiled[id] = null
 		else:
 			compiled[id] = res.code
@@ -879,26 +865,17 @@ func _on_run() -> void:
 	if run_replay:
 		attack = list[attack_choice]  # même numéro = exactement la même attaque
 		number = attack_choice + 1
-		_set_status("", Color.WHITE)
 	else:
 		attack = _new_attack_id()
 		list.append(attack)
 		number = list.size()
 		_rebuild_attack_menu()
-		_set_status("", Color.WHITE)
-	if not broken.is_empty():
-		_set_status("%s : hors service (erreur dans le programme)" % ", ".join(broken), Color.ORANGE)
 	world = World.new(lv, compiled, attack)
 	view.world = world
 	view.alpha = 1.0
 	_set_running(true)
 	timer = 0.0
 	view.queue_redraw()
-
-
-func _set_status(t: String, c: Color) -> void:
-	status_label.text = t
-	status_label.modulate = c
 
 
 func _set_running(r: bool) -> void:
@@ -946,7 +923,6 @@ func _esc(t: String) -> String:
 func _drain_prints() -> void:
 	for e in world.events:
 		_log("[color=tomato]%s — ligne %d : %s[/color]" % [e.nom, e.line, _esc(str(e.msg))])
-		_set_status("%s est tombé en panne (hors service)" % e.nom, Color.ORANGE)
 		_mark_line(e.id, e.line, ERROR_LINE)
 	world.events.clear()
 	for rb in world.robots:
@@ -981,7 +957,6 @@ func _finish() -> void:
 		info["title"] = "Échec"
 		info["color"] = Color.ORANGE
 	result_info = info
-	_set_status("", Color.WHITE)
 	_show_modal("resultat")
 
 

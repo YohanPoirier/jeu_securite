@@ -57,7 +57,6 @@ func _init() -> void:
 	if main._level_attacks().size() != 1 or not main.run_replay:
 		print("ÉCHEC : le rejeu ne doit pas créer de nouvelle attaque")
 		fails += 1
-	print("message rejeu : ", main.status_label.text)
 	# un rejeu ne valide pas le niveau
 	main.unlocked = 2
 	main._select_level(1)
