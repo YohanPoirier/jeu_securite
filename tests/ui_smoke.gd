@@ -73,11 +73,11 @@ func _init() -> void:
 		print("ÉCHEC : un rejeu ne doit pas débloquer de niveau")
 		fails += 1
 	# la vitesse met en pause tant qu'on n'a pas choisi
-	main.speed_btn.get_popup().about_to_popup.emit()
+	main.speed_menu.about_to_popup.emit()
 	if not main.sim_paused:
 		print("ÉCHEC : le choix de vitesse devrait mettre en pause")
 		fails += 1
-	main.speed_btn.get_popup().popup_hide.emit()
+	main.speed_menu.popup_hide.emit()
 	if main.sim_paused:
 		fails += 1
 	# vrai clic de souris sur le robot dans l'entrepôt

@@ -14,7 +14,7 @@ const RailView = preload("res://scripts/rail_view.gd")
 const SAVE_PATH := "user://progression.cfg"
 const TOP_H := 40
 const BOTTOM_H := 102
-const SPEEDS := [["Lent  (×½)", 3], ["Normal  (×1)", 6], ["Rapide  (×2)", 12], ["Très rapide  (×4)", 24]]
+const SPEEDS := [["Lent (×½)", 3], ["Normal (×1)", 6], ["Rapide (×2)", 12], ["Très rapide (×4)", 24]]
 const GREEN := Color(0.16, 0.50, 0.28)
 const REPLAY_COLOR := Color(1.0, 0.82, 0.45)
 const EDITOR_W := 520
@@ -52,8 +52,10 @@ var help_tab := "interface"
 var title_label: Label
 var btn_run: Button
 var btn_stop: Button
-var speed_btn: MenuButton
-var attack_btn: MenuButton
+var speed_btn: Button
+var speed_menu: PopupMenu
+var attack_menu: PopupMenu
+var attack_btn: Button
 var out_btn: Button
 var out_panel: PanelContainer
 var attack_label: Label
@@ -251,13 +253,15 @@ func _build_bottom_bar() -> void:
 	btn_run = _styled_button("▶  Lancer", GREEN)
 	btn_run.pressed.connect(_on_run)
 	run_box.add_child(btn_run)
-	attack_btn = MenuButton.new()
+	attack_btn = Button.new()
 	attack_btn.text = "▲"
 	attack_btn.custom_minimum_size = Vector2(34, 46)
 	attack_btn.add_theme_font_size_override("font_size", 14)
 	attack_btn.tooltip_text = "Choisir l'attaque : une nouvelle, ou une ancienne à rejouer pour déboguer"
 	_apply_colors(attack_btn, GREEN.darkened(0.15))
-	attack_btn.get_popup().id_pressed.connect(_on_attack_chosen)
+	attack_menu = _make_popup()
+	attack_menu.id_pressed.connect(_on_attack_chosen)
+	attack_btn.pressed.connect(func(): _popup_above(attack_btn, attack_menu))
 	run_box.add_child(attack_btn)
 	btn_stop = _styled_button("■  Arrêter", Color(0.45, 0.20, 0.20))
 	btn_stop.custom_minimum_size = Vector2(120, 46)
@@ -265,21 +269,70 @@ func _build_bottom_bar() -> void:
 	bh.add_child(btn_stop)
 	# vitesse : petit bouton de couleur à icône de compteur ; les choix n'apparaissent qu'au clic,
 	# et la simulation est en pause tant qu'on n'a pas choisi
-	speed_btn = MenuButton.new()
+	speed_btn = Button.new()
 	speed_btn.icon = _gauge_icon()
 	speed_btn.expand_icon = false
 	speed_btn.custom_minimum_size = Vector2(46, 46)
 	speed_btn.tooltip_text = "Vitesse de la simulation"
 	_apply_colors(speed_btn, Color(0.20, 0.38, 0.62))
-	var pm := speed_btn.get_popup()
+	speed_menu = _make_popup()
 	for i in SPEEDS.size():
-		pm.add_radio_check_item(SPEEDS[i][0], i)
-		pm.set_item_checked(i, SPEEDS[i][1] == tps)
-	pm.id_pressed.connect(_on_speed_chosen)
-	pm.about_to_popup.connect(func(): sim_paused = true)
-	pm.popup_hide.connect(func(): sim_paused = false)
+		speed_menu.add_radio_check_item(SPEEDS[i][0], i)
+		speed_menu.set_item_checked(i, SPEEDS[i][1] == tps)
+	speed_menu.id_pressed.connect(_on_speed_chosen)
+	speed_menu.about_to_popup.connect(func(): sim_paused = true)
+	speed_menu.popup_hide.connect(func(): sim_paused = false)
+	speed_btn.pressed.connect(func(): _popup_above(speed_btn, speed_menu))
 	bh.add_child(speed_btn)
 	_rebuild_attack_menu()
+
+
+## Liste déroulante au style du jeu (fond sombre, survol bleu, pastilles de choix).
+func _make_popup() -> PopupMenu:
+	var pm := PopupMenu.new()
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.12, 0.13, 0.17)
+	bg.border_color = Color(0.32, 0.36, 0.45)
+	bg.set_border_width_all(1)
+	bg.set_corner_radius_all(8)
+	bg.set_content_margin_all(6)
+	bg.shadow_color = Color(0, 0, 0, 0.5)
+	bg.shadow_size = 6
+	pm.add_theme_stylebox_override("panel", bg)
+	var hover := StyleBoxFlat.new()
+	hover.bg_color = Color(0.22, 0.38, 0.62)
+	hover.set_corner_radius_all(5)
+	pm.add_theme_stylebox_override("hover", hover)
+	pm.add_theme_font_size_override("font_size", 17)
+	pm.add_theme_constant_override("v_separation", 12)
+	pm.add_theme_constant_override("h_separation", 12)
+	pm.add_theme_constant_override("item_start_padding", 10)
+	pm.add_theme_constant_override("item_end_padding", 14)
+	pm.add_theme_color_override("font_separator_color", Color(0.6, 0.65, 0.75))
+	pm.add_theme_icon_override("radio_checked", _dot_icon(true))
+	pm.add_theme_icon_override("radio_unchecked", _dot_icon(false))
+	pm.min_size = Vector2i(190, 0)
+	pm.max_size = Vector2i(420, 380)
+	add_child(pm)
+	return pm
+
+
+func _dot_icon(checked: bool) -> Texture2D:
+	var svg := """<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">
+<circle cx="9" cy="9" r="7" fill="none" stroke="#8a93a6" stroke-width="1.8"/>%s</svg>""" % ("<circle cx=\"9\" cy=\"9\" r=\"3.8\" fill=\"#6fd08c\"/>" if checked else "")
+	var img := Image.new()
+	img.load_svg_from_string(svg)
+	return ImageTexture.create_from_image(img)
+
+
+## Ouvre une liste juste au-dessus d'un bouton (les boutons sont en bas de l'écran).
+func _popup_above(btn: Control, pm: PopupMenu) -> void:
+	pm.reset_size()
+	var sz := Vector2i(pm.get_contents_minimum_size())
+	sz.x = maxi(sz.x, int(btn.size.x))
+	sz.y = mini(sz.y, pm.max_size.y)
+	var top_left := Vector2i(btn.get_screen_transform() * Vector2.ZERO)
+	pm.popup(Rect2i(Vector2i(top_left.x, top_left.y - sz.y - 8), sz))
 
 
 ## Petite icône de compteur (cadran et aiguille), dessinée en SVG.
@@ -295,9 +348,8 @@ func _gauge_icon() -> Texture2D:
 
 func _on_speed_chosen(id: int) -> void:
 	tps = SPEEDS[id][1]
-	var pm := speed_btn.get_popup()
 	for i in SPEEDS.size():
-		pm.set_item_checked(i, i == id)
+		speed_menu.set_item_checked(i, i == id)
 	speed_btn.tooltip_text = "Vitesse : %s" % String(SPEEDS[id][0]).replace("  ", " ")
 
 
@@ -316,7 +368,7 @@ func _level_attacks() -> Array:
 
 
 func _rebuild_attack_menu() -> void:
-	var pm := attack_btn.get_popup()
+	var pm := attack_menu
 	pm.clear()
 	pm.add_radio_check_item("Nouvelle attaque", 0)
 	var n := _level_attacks().size() if not levels.is_empty() else 0
