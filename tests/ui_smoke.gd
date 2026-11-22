@@ -102,7 +102,7 @@ func _init() -> void:
 	main._select_level(0)
 	main._close_modal()
 	main._close_editor()
-	main.editors["garde"].text = "if True:\n    avancer()\n"
+	main.editors["garde"].text = "x = 1\nwhile True:\n    avancer()\n"
 	main._on_run()
 	print("éditeur ouvert après erreur : ", main.editor_panel.visible, " (attendu : false)")
 	print("console : ", main.console.get_parsed_text().strip_edges().split("\n")[-1])
