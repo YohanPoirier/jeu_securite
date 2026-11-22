@@ -58,8 +58,6 @@ var attack_menu: PopupMenu
 var attack_btn: Button
 var out_btn: Button
 var out_panel: PanelContainer
-var attack_label: Label
-var tick_label: Label
 var status_label: Label
 var editor_panel: PanelContainer
 var editor_title: Label
@@ -190,7 +188,7 @@ func _build_menu() -> void:
 
 
 ## Donne à un bouton un fond plein de couleur, à angles arrondis.
-func _apply_colors(btn: BaseButton, color: Color) -> void:
+func _apply_colors(btn: BaseButton, color: Color, border := false) -> void:
 	for state in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = color
@@ -202,6 +200,9 @@ func _apply_colors(btn: BaseButton, color: Color) -> void:
 			sb.bg_color = color.darkened(0.5)
 		sb.set_corner_radius_all(6)
 		sb.set_content_margin_all(8)
+		if border:
+			sb.border_color = Color(0.32, 0.36, 0.45)
+			sb.set_border_width_all(1)
 		btn.add_theme_stylebox_override(state, sb)
 	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	btn.flat = false  # les MenuButton sont plats par défaut
@@ -235,12 +236,6 @@ func _build_bottom_bar() -> void:
 	status_label.add_theme_font_size_override("font_size", 16)
 	info.add_child(status_label)
 	info.add_child(_spacer())
-	attack_label = _label("")
-	attack_label.modulate = Color(1, 1, 1, 0.6)
-	info.add_child(attack_label)
-	tick_label = _label("")
-	tick_label.modulate = Color(1, 1, 1, 0.6)
-	info.add_child(tick_label)
 
 	# ligne des commandes
 	var bh := HBoxContainer.new()
@@ -248,17 +243,16 @@ func _build_bottom_bar() -> void:
 	bv.add_child(bh)
 	# Lancer + petite flèche pour choisir l'attaque (nouvelle ou ancienne)
 	var run_box := HBoxContainer.new()
-	run_box.add_theme_constant_override("separation", 2)
+	run_box.add_theme_constant_override("separation", 8)
 	bh.add_child(run_box)
 	btn_run = _styled_button("▶  Lancer", GREEN)
 	btn_run.pressed.connect(_on_run)
 	run_box.add_child(btn_run)
 	attack_btn = Button.new()
-	attack_btn.text = "▲"
-	attack_btn.custom_minimum_size = Vector2(34, 46)
-	attack_btn.add_theme_font_size_override("font_size", 14)
-	attack_btn.tooltip_text = "Choisir l'attaque : une nouvelle, ou une ancienne à rejouer pour déboguer"
-	_apply_colors(attack_btn, GREEN.darkened(0.15))
+	attack_btn.custom_minimum_size = Vector2(210, 46)
+	attack_btn.add_theme_font_size_override("font_size", 16)
+	attack_btn.tooltip_text = "Attaque à lancer : une nouvelle, ou une ancienne à rejouer pour déboguer"
+	_apply_colors(attack_btn, Color(0.17, 0.19, 0.24), true)
 	attack_menu = _make_popup()
 	attack_menu.id_pressed.connect(_on_attack_chosen)
 	attack_btn.pressed.connect(func(): _popup_above(attack_btn, attack_menu))
@@ -379,6 +373,7 @@ func _rebuild_attack_menu() -> void:
 	for i in pm.item_count:
 		if not pm.is_item_separator(i):
 			pm.set_item_checked(i, pm.get_item_id(i) == attack_choice + 1)
+	attack_btn.text = ("Attaque %d  ▾" % (attack_choice + 1)) if attack_choice >= 0 else "Nouvelle attaque  ▾"
 
 
 func _replay_msg(n: int) -> String:
@@ -635,9 +630,7 @@ func _restart_level() -> void:
 	out_panel.visible = false
 	attack_choice = -1
 	_rebuild_attack_menu()
-	attack_label.text = ""
 	status_label.text = ""
-	tick_label.text = ""
 	world = World.new(levels[cur], {}, 0)
 	view.world = world
 	view.alpha = 1.0
@@ -717,13 +710,11 @@ func _select_level(idx: int) -> void:
 	out_panel.visible = false
 	attack_choice = -1
 	_rebuild_attack_menu()
-	attack_label.text = ""
 	status_label.text = ""
 	world = World.new(lv, {}, 0)
 	view.world = world
 	view.alpha = 1.0
 	view.queue_redraw()
-	tick_label.text = ""
 	_show_modal("scenario")  # le scénario s'affiche au début du niveau
 
 
@@ -792,7 +783,6 @@ func _on_run() -> void:
 		number = list.size()
 		_rebuild_attack_menu()
 		_set_status("", Color.WHITE)
-	attack_label.text = "Attaque %d%s" % [number, " (rejeu)" if run_replay else ""]
 	world = World.new(lv, compiled, attack)
 	view.world = world
 	view.alpha = 1.0
@@ -838,7 +828,6 @@ func _process(delta: float) -> void:
 			break
 		for rb in world.robots:
 			_mark_line(rb.id, rb.vm.last_line)
-	tick_label.text = "Tick %d" % world.tick_n
 	view.alpha = clampf(timer / interval, 0.0, 1.0) if running else 1.0
 	view.queue_redraw()
 
