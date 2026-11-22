@@ -394,10 +394,6 @@ func _draw_warehouse(lay: Dictionary, font: Font) -> void:
 	# portes aux extrémités du couloir
 	for gc in [k - 1, right]:
 		_draw_gate(_cell_rect(lay, gc, RAIL_ROW), gc == k - 1, font)
-	draw_string(font, _cell_rect(lay, 0, RAIL_ROW).position + Vector2(0, -cell * 0.06), "porte",
-		HORIZONTAL_ALIGNMENT_RIGHT, cell * 1.9, 13, C_DOOR)
-	draw_string(font, _cell_rect(lay, right + 1, RAIL_ROW).position + Vector2(cell * 0.1, -cell * 0.06), "porte",
-		HORIZONTAL_ALIGNMENT_LEFT, cell * 1.9, 13, C_DOOR)
 
 
 ## Style des murs : true = traits fins (la case reste non marchable, mais le mur est dessiné étroit),
@@ -474,19 +470,14 @@ func _draw_gate(rc: Rect2, left_side: bool, font: Font) -> void:
 	draw_rect(in_rc, C_FLOOR)
 	draw_rect(in_rc, C_TILE, false, 1.0)
 	draw_rect(out_rc, C_GRASS)
-	# tapis d'accueil, sur l'herbe, devant la porte ; le texte se lit en arrivant de l'extérieur
+	# tapis d'accueil, sur l'herbe, juste devant la porte
 	var w := rc.size.x * 0.20
 	var cell := rc.size.x
-	var depth := cell * 0.42
-	var length := cell * 0.78
-	var gap := cell * 0.16  # le tapis ne touche pas la porte
-	var mx := cx - w / 2.0 - gap - depth if left_side else cx + w / 2.0 + gap
-	var mat := Rect2(mx, rc.get_center().y - length / 2.0, depth, length)
-	_rr(mat, Color(0.50, 0.22, 0.18), 3)
-	_rr(mat.grow(-2.5), Color(0.62, 0.30, 0.22), 2)
-	draw_set_transform(mat.get_center(), PI / 2.0 if left_side else -PI / 2.0, Vector2.ONE)
-	draw_string(font, Vector2(-length / 2.0, 2.8), "WELCOME", HORIZONTAL_ALIGNMENT_CENTER, length, 7, Color(0.98, 0.92, 0.75))
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var mat_x := cx - w / 2.0 - cell * 0.95 if left_side else cx + w / 2.0
+	var mat := Rect2(mat_x, rc.get_center().y - cell * 0.30, cell * 0.95, cell * 0.60)
+	draw_rect(mat, Color(0.55, 0.20, 0.18))
+	draw_rect(mat.grow(-3.0), Color(0.40, 0.14, 0.14), false, 1.5)
+	draw_string(font, Vector2(mat.position.x, mat.get_center().y + 3.5), "WELCOME", HORIZONTAL_ALIGNMENT_CENTER, mat.size.x, 8, Color(0.95, 0.85, 0.65))
 	# plaque
 	var slab := Rect2(cx - w / 2.0, rc.position.y, w, rc.size.y)
 	draw_rect(slab, C_DOOR)
