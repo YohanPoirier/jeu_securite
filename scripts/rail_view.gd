@@ -1,6 +1,7 @@
 extends Control
-## L'entrepôt, en plein écran, entièrement dessiné sur une grille de cases :
-## sol, étagères (3 cases chacune), rail, portes, robots et intrus.
+## L'entrepôt vu de dessus, dessiné sur une grille de cases : pelouse et décor autour, murs, couloir
+## (c'est le rail), petites salles pleines d'étagères, portes, robots et intrus.
+## La nuit est tombée : tout est assombri, sauf la case du robot et celle qu'éclaire sa lampe.
 ## Pour l'instant c'est purement graphique : la logique du jeu reste celle du rail (world.gd).
 ##
 ## Déplacement « au tour par tour » : pendant un tick, l'élément glisse vers sa nouvelle case
@@ -12,35 +13,39 @@ signal robot_clicked(id: String)
 var world = null
 var alpha := 1.0  # avancement dans le tick courant, de 0 à 1
 var hover := -1  # indice du robot survolé
+var inset_top := 0.0  # hauteur de la barre du haut (l'entrepôt se centre entre les deux barres)
+var inset_bottom := 0.0
 
-const ROWS := 9
-const RAIL_ROW := 4
+const ROWS := 11
+const RAIL_ROW := 5  # rangée du couloir
+const MARGIN := 3  # colonnes avant la première case du rail : pelouse, pelouse, mur et porte
 const MOVE_FRACTION := 0.55  # part du tick consacrée au glissement ; le reste est la pause
-const SHELF_ROWS := [1, 2, 6, 7]  # rangées de cases occupées par des étagères
-const SHELF_LEN := 3  # une étagère occupe 3 cases
 
-const C_FLOOR := Color(0.15, 0.16, 0.18)
-const C_TILE := Color(0.19, 0.20, 0.23)
-const C_RAIL := Color(0.10, 0.11, 0.13)
-const C_CELL := Color(0.23, 0.25, 0.30)
+const C_GRASS := Color(0.20, 0.38, 0.22)
+const C_FLOOR := Color(0.43, 0.44, 0.48)
+const C_TILE := Color(0.37, 0.38, 0.42)
+const C_CORRIDOR := Color(0.54, 0.55, 0.59)
+const C_WALL := Color(0.55, 0.42, 0.36)
+const C_MORTAR := Color(0.38, 0.28, 0.25)
 const C_DOOR := Color(0.85, 0.65, 0.20)
 const C_ROBOT := Color(0.25, 0.60, 0.95)
-const C_INTRUDER := Color(0.92, 0.25, 0.25)
-const C_CAUGHT := Color(0.35, 0.80, 0.45)
-const CRATES := [Color(0.55, 0.40, 0.25), Color(0.45, 0.50, 0.55), Color(0.60, 0.50, 0.30), Color(0.35, 0.45, 0.40)]
+const CRATES := [Color(0.65, 0.48, 0.30), Color(0.50, 0.58, 0.64), Color(0.72, 0.60, 0.34), Color(0.40, 0.55, 0.47)]
+
+var _brain_tex: Texture2D = null
 
 
 ## Géométrie de la grille, commune au dessin et aux clics.
-## cols : 16 si le rail a un nombre pair de cases, 17 sinon (rail centré).
-## k : colonne de la première case du rail.
+## Le rail occupe les colonnes k, k+1, ... ; les portes sont dans les murs, de part et d'autre.
 func _layout() -> Dictionary:
 	var l: int = world.length if world != null else 6
-	var cols := 16 if l % 2 == 0 else 17
-	var cell: float = minf(size.x / float(cols), size.y / float(ROWS))
+	var cols := l + 2 * MARGIN
+	var avail_h := size.y - inset_top - inset_bottom
+	var cell: float = minf(size.x / float(cols), avail_h / float(ROWS))
 	return {
 		"l": l, "cols": cols, "cell": cell,
-		"x0": (size.x - cell * cols) / 2.0, "y0": (size.y - cell * ROWS) / 2.0,
-		"k": (cols - l) / 2,
+		"x0": (size.x - cell * cols) / 2.0,
+		"y0": inset_top + (avail_h - cell * ROWS) / 2.0,
+		"k": MARGIN,
 	}
 
 
@@ -85,91 +90,381 @@ func _gui_input(event: InputEvent) -> void:
 				return
 
 
+# ---------- petits outils de dessin ----------
+
+## Rectangle à coins arrondis (avec contour facultatif).
+func _rr(r: Rect2, color: Color, radius: float, border := Color(0, 0, 0, 0), bw := 0) -> void:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = color
+	sb.set_corner_radius_all(maxi(1, int(radius)))
+	if bw > 0:
+		sb.border_color = border
+		sb.set_border_width_all(bw)
+		if color.a == 0.0:
+			sb.draw_center = false
+	draw_style_box(sb, r)
+
+
+## Nombre pseudo-aléatoire fixe pour une case : le décor ne change jamais d'une partie à l'autre.
+func _hash(c: int, r: int) -> int:
+	return absi((c * 73856093) ^ (r * 19349663) ^ 83492791) % 1000003
+
+
+func _inside(lay: Dictionary, c: int, r: int) -> bool:
+	return c >= 2 and c <= lay.k + lay.l and r >= 1 and r <= ROWS - 2
+
+
+## Salles : de part et d'autre du couloir, séparées par un mur d'une colonne.
+func _rooms(l: int) -> Array:
+	var n := maxi(1, (l + 1) / 3)
+	var free := l - (n - 1)
+	var base := free / n
+	var extra := free % n
+	var out: Array = []
+	var c := MARGIN
+	for i in n:
+		var w := base + (1 if i < extra else 0)
+		out.append({"c0": c, "w": w})
+		c += w + 1
+	return out
+
+
+# ---------- dessin ----------
+
 func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	var lay := _layout()
 	var l: int = lay.l
-	var cols: int = lay.cols
-	var cell: float = lay.cell
 	var k: int = lay.k
-	# sol carrelé : une dalle par case de la grille (le sol déborde de la grille jusqu'aux bords)
-	draw_rect(Rect2(Vector2.ZERO, size), C_FLOOR)
-	var gx: float = fmod(lay.x0, cell) - cell
-	while gx < size.x:
-		draw_line(Vector2(gx, 0), Vector2(gx, size.y), C_TILE, 1.0)
-		gx += cell
-	var gy: float = fmod(lay.y0, cell) - cell
-	while gy < size.y:
-		draw_line(Vector2(0, gy), Vector2(size.x, gy), C_TILE, 1.0)
-		gy += cell
-	_draw_shelves(lay)
-	# rail : une case par case de la grille
-	var rail_bg: Rect2 = _cell_rect(lay, k, RAIL_ROW)
-	draw_rect(Rect2(rail_bg.position - Vector2(4, 4), Vector2(cell * l + 8.0, cell + 8.0)), C_RAIL)
+	var cell: float = lay.cell
+	var lamps: Array = []
+	draw_rect(Rect2(Vector2.ZERO, size), C_GRASS)
+	_draw_outside(lay, lamps)
+	_draw_warehouse(lay, font)
+	if world == null:
+		return
+	for it in world.intruders:
+		if it.state != "attente":
+			_draw_thief(lay, it)
+	for i in world.robots.size():
+		_draw_robot(lay, world.robots[i], i == hover)
+	_draw_night(lay, lamps)
+	# étiquettes et cerveau par-dessus la nuit, pour rester lisibles
+	for i in world.robots.size():
+		var rb: Dictionary = world.robots[i]
+		var c := _robot_center(lay, rb)
+		var broken: bool = rb.hs
+		if rb.vm.thinking and not broken:
+			draw_texture_rect(_brain(), Rect2(c + Vector2(cell * 0.12, -cell * 0.95), Vector2(cell * 0.7, cell * 0.7)), false)
+		draw_string(font, Vector2(c.x - cell, c.y + cell * 0.62), String(rb.nom) + (" (HS)" if broken else ""),
+			HORIZONTAL_ALIGNMENT_CENTER, cell * 2.0, 13, Color(1.0, 0.55, 0.55) if broken else Color(1, 1, 1, 0.95))
+		if i == hover:
+			draw_string(font, Vector2(c.x - cell * 1.5, c.y - cell * 0.62), "clic : programmer",
+				HORIZONTAL_ALIGNMENT_CENTER, cell * 3.0, 13, Color(1, 1, 1, 0.95))
+
+
+## Pelouse, arbres, buissons et lampadaires autour de l'entrepôt (décor fixe, tiré de la position).
+func _draw_outside(lay: Dictionary, lamps: Array) -> void:
+	var cell: float = lay.cell
+	var c_min: int = floori(-lay.x0 / cell) - 1
+	var c_max: int = ceili((size.x - lay.x0) / cell) + 1
+	for r in range(-1, ROWS + 1):
+		for c in range(c_min, c_max + 1):
+			if _inside(lay, c, r):
+				continue
+			var rc := _cell_rect(lay, c, r)
+			var h := _hash(c, r)
+			var ctr := rc.get_center()
+			if (r == 0 or r == ROWS - 1) and posmod(c, 5) == 0:
+				_draw_lamp(ctr, cell)
+				lamps.append(ctr + Vector2(0, -cell * 0.42))
+			elif h % 6 == 0:
+				_draw_tree(ctr, cell, h)
+			elif h % 6 == 1:
+				_draw_bush(ctr, cell, h)
+			elif h % 3 == 0:
+				for j in 3:
+					var p := rc.position + Vector2(cell * (0.2 + 0.3 * j), cell * (0.35 + 0.2 * ((h >> j) % 3)))
+					draw_line(p, p + Vector2(-2, -5), C_GRASS.lightened(0.18), 1.5)
+					draw_line(p, p + Vector2(2, -6), C_GRASS.lightened(0.12), 1.5)
+
+
+func _draw_tree(ctr: Vector2, cell: float, h: int) -> void:
+	var s := 0.8 + 0.25 * float(h % 3) / 2.0
+	draw_set_transform(ctr + Vector2(0, cell * 0.30), 0.0, Vector2(1.0, 0.35))
+	draw_circle(Vector2.ZERO, cell * 0.36 * s, Color(0, 0, 0, 0.30))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	_rr(Rect2(ctr + Vector2(-cell * 0.06, -cell * 0.02), Vector2(cell * 0.12, cell * 0.34)), Color(0.36, 0.25, 0.16), 2)
+	var g := Color(0.12, 0.30, 0.16)
+	draw_circle(ctr + Vector2(-cell * 0.16, -cell * 0.08) * s, cell * 0.26 * s, g)
+	draw_circle(ctr + Vector2(cell * 0.16, -cell * 0.08) * s, cell * 0.26 * s, g.darkened(0.05))
+	draw_circle(ctr + Vector2(0, -cell * 0.24) * s, cell * 0.28 * s, g.lightened(0.10))
+	draw_circle(ctr + Vector2(-cell * 0.06, -cell * 0.30) * s, cell * 0.10 * s, g.lightened(0.25))
+
+
+func _draw_bush(ctr: Vector2, cell: float, h: int) -> void:
+	var g := Color(0.16, 0.34, 0.19)
+	draw_circle(ctr + Vector2(-cell * 0.14, cell * 0.08), cell * 0.20, g)
+	draw_circle(ctr + Vector2(cell * 0.14, cell * 0.08), cell * 0.19, g.darkened(0.06))
+	draw_circle(ctr + Vector2(0, -cell * 0.04), cell * 0.22, g.lightened(0.08))
+	if h % 4 == 0:  # quelques fleurs
+		draw_circle(ctr + Vector2(cell * 0.06, -cell * 0.08), 2.5, Color(0.95, 0.85, 0.40))
+
+
+func _draw_lamp(ctr: Vector2, cell: float) -> void:
+	_rr(Rect2(ctr + Vector2(-cell * 0.14, cell * 0.30), Vector2(cell * 0.28, cell * 0.08)), Color(0.20, 0.20, 0.24), 2)
+	draw_rect(Rect2(ctr + Vector2(-cell * 0.03, -cell * 0.38), Vector2(cell * 0.06, cell * 0.72)), Color(0.28, 0.28, 0.32))
+	_rr(Rect2(ctr + Vector2(-cell * 0.13, -cell * 0.50), Vector2(cell * 0.26, cell * 0.14)), Color(0.22, 0.22, 0.26), 3)
+	draw_circle(ctr + Vector2(0, -cell * 0.42), cell * 0.075, Color(1.0, 0.93, 0.60))
+
+
+## L'entrepôt : sol, couloir, salles, étagères pleines de marchandises, murs et portes.
+func _draw_warehouse(lay: Dictionary, font: Font) -> void:
+	var l: int = lay.l
+	var k: int = lay.k
+	var cell: float = lay.cell
+	var right: int = k + l  # colonne du mur de droite
+	var rooms := _rooms(l)
+	var door_cols: Array = []
+	var sep_cols: Array = []
+	for i in rooms.size():
+		door_cols.append(rooms[i].c0)
+		if i < rooms.size() - 1:
+			sep_cols.append(rooms[i].c0 + rooms[i].w)
+	# sol de tout l'intérieur
+	for r in range(2, ROWS - 2):
+		for c in range(k, right):
+			var rc := _cell_rect(lay, c, r)
+			draw_rect(rc, C_FLOOR)
+			draw_rect(rc, C_TILE, false, 1.0)
+	# couloir
 	for i in l:
-		var r := _cell_rect(lay, k + i, RAIL_ROW).grow(-2.0)
-		draw_rect(r, C_CELL)
-		draw_string(font, Vector2(r.position.x + 4.0, r.end.y - 4.0), str(i),
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1, 1, 1, 0.35))
-	# portes : une case à chaque extrémité du rail
-	for gc in [k - 1, k + l]:
-		var gr := _cell_rect(lay, gc, RAIL_ROW).grow(-2.0)
-		draw_rect(gr, C_DOOR.darkened(0.5))
+		var rc := _cell_rect(lay, k + i, RAIL_ROW)
+		draw_rect(rc, C_CORRIDOR)
+		draw_rect(rc, C_TILE.lightened(0.1), false, 1.0)
+		draw_rect(Rect2(rc.position + Vector2(0, 2), Vector2(cell, 3)), Color(0.85, 0.70, 0.20, 0.8))
+		draw_rect(Rect2(rc.position + Vector2(0, cell - 5), Vector2(cell, 3)), Color(0.85, 0.70, 0.20, 0.8))
+		draw_string(font, rc.position + Vector2(4.0, cell - 8.0), str(i), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0, 0, 0, 0.45))
+	# étagères au fond de chaque salle (rangée du haut et du bas)
+	for room in rooms:
+		for j in room.w:
+			_draw_shelf(_cell_rect(lay, room.c0 + j, 2), room.c0 + j, 2)
+			_draw_shelf(_cell_rect(lay, room.c0 + j, ROWS - 3), room.c0 + j, ROWS - 3)
+	# murs : pourtour, cloisons du couloir (avec une ouverture par salle) et séparations de salles
+	for c in range(2, right + 1):
+		_draw_wall(_cell_rect(lay, c, 1))
+		_draw_wall(_cell_rect(lay, c, ROWS - 2))
+	for r in range(1, ROWS - 1):
+		if r != RAIL_ROW:
+			_draw_wall(_cell_rect(lay, 2, r))
+			_draw_wall(_cell_rect(lay, right, r))
+	for c in range(k, right):
+		for r in [RAIL_ROW - 1, RAIL_ROW + 1]:
+			if door_cols.has(c):
+				_draw_doorway(_cell_rect(lay, c, r))
+			else:
+				_draw_wall(_cell_rect(lay, c, r))
+	for c in sep_cols:
+		for r in [2, 3, ROWS - 4, ROWS - 3]:
+			_draw_wall(_cell_rect(lay, c, r))
+	# portes aux extrémités du couloir
+	for gc in [k - 1, right]:
+		var gr := _cell_rect(lay, gc, RAIL_ROW)
+		draw_rect(gr, C_DOOR.darkened(0.55))
 		var s := 0.0
 		while s < gr.size.y:
 			if int(s / 9.0) % 2 == 0:
-				draw_rect(Rect2(gr.position.x, gr.position.y + s, gr.size.x, minf(9.0, gr.size.y - s)), C_DOOR.darkened(0.1))
+				draw_rect(Rect2(gr.position.x + 3.0, gr.position.y + s, gr.size.x - 6.0, minf(9.0, gr.size.y - s)), C_DOOR.darkened(0.1))
 			s += 9.0
-		draw_string(font, Vector2(gr.position.x - 4.0, gr.position.y - 6.0), "porte",
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 13, C_DOOR)
-	if world == null:
-		return
-	# intrus
-	for it in world.intruders:
-		if it.state == "attente":
+	draw_string(font, _cell_rect(lay, 0, RAIL_ROW).position + Vector2(0, cell * 0.6), "porte",
+		HORIZONTAL_ALIGNMENT_RIGHT, cell * 1.9, 13, C_DOOR)
+	draw_string(font, _cell_rect(lay, right + 1, RAIL_ROW).position + Vector2(cell * 0.1, cell * 0.6), "porte",
+		HORIZONTAL_ALIGNMENT_LEFT, cell * 1.9, 13, C_DOOR)
+
+
+func _draw_wall(rc: Rect2) -> void:
+	draw_rect(rc, C_WALL)
+	var th := rc.size.y / 3.0
+	for i in 3:
+		var y := rc.position.y + th * i
+		if i > 0:
+			draw_line(Vector2(rc.position.x, y), Vector2(rc.end.x, y), C_MORTAR, 1.0)
+		var x := rc.position.x + rc.size.x * (0.5 if i % 2 == 0 else 0.0)
+		if i % 2 == 0:
+			draw_line(Vector2(x, y), Vector2(x, y + th), C_MORTAR, 1.0)
+	draw_rect(Rect2(rc.position, Vector2(rc.size.x, rc.size.y * 0.10)), C_WALL.lightened(0.20))
+	draw_rect(rc, C_MORTAR.darkened(0.2), false, 1.0)
+
+
+func _draw_doorway(rc: Rect2) -> void:
+	draw_rect(rc, C_FLOOR)
+	draw_rect(rc, C_TILE, false, 1.0)
+	draw_rect(Rect2(rc.position, Vector2(rc.size.x * 0.12, rc.size.y)), C_WALL.darkened(0.25))
+	draw_rect(Rect2(rc.position + Vector2(rc.size.x * 0.88, 0), Vector2(rc.size.x * 0.12, rc.size.y)), C_WALL.darkened(0.25))
+
+
+## Une étagère (une case) : montants, deux niveaux, caisses et tonneaux.
+func _draw_shelf(rc: Rect2, c: int, r: int) -> void:
+	draw_rect(rc.grow(-1.0), Color(0.20, 0.21, 0.24))
+	var half := rc.size.y / 2.0
+	for lvl in 2:
+		var y0 := rc.position.y + lvl * half
+		draw_rect(Rect2(rc.position.x + 2.0, y0 + half - 4.0, rc.size.x - 4.0, 3.0), Color(0.50, 0.38, 0.26))
+		var h := _hash(c * 7 + lvl, r * 3)
+		var col: Color = CRATES[h % CRATES.size()]
+		if h % 5 == 0:  # tonneau
+			draw_circle(Vector2(rc.get_center().x, y0 + half * 0.52), half * 0.36, Color(0.35, 0.45, 0.60))
+			draw_arc(Vector2(rc.get_center().x, y0 + half * 0.52), half * 0.36, 0.0, TAU, 20, Color(0.20, 0.28, 0.40), 2.0)
+		else:
+			var bw := rc.size.x * (0.34 if h % 2 == 0 else 0.42)
+			_rr(Rect2(rc.position.x + 4.0, y0 + 4.0, bw, half - 9.0), col, 2)
+			_rr(Rect2(rc.position.x + 4.0, y0 + 4.0, bw, 3.0), col.lightened(0.25), 1)
+			var col2: Color = CRATES[(h / 3) % CRATES.size()]
+			_rr(Rect2(rc.position.x + 8.0 + bw, y0 + 7.0, rc.size.x - bw - 13.0, half - 12.0), col2, 2)
+
+
+# ---------- personnages ----------
+
+## Léger rebond quand l'élément est en train de glisser vers sa case.
+func _bob(prev: int, pos: int, cell: float) -> float:
+	if prev == pos:
+		return 0.0
+	var u := clampf(alpha / MOVE_FRACTION, 0.0, 1.0)
+	if u >= 1.0:
+		return 0.0
+	return -absf(sin(u * PI * 2.0)) * cell * 0.04
+
+
+## Le vigile : robot à casquette, visière lumineuse et lampe de poche tenue du côté où il regarde.
+func _draw_robot(lay: Dictionary, rb: Dictionary, hovered: bool) -> void:
+	var u: float = lay.cell * 1.12  # les personnages dépassent un peu de leur case
+	var c := _robot_center(lay, rb)
+	var f: float = float(rb.facing)
+	var broken: bool = rb.hs
+	var b := _bob(rb.prev, rb.pos, u)
+	var body_col := Color(0.38, 0.40, 0.44) if broken else C_ROBOT
+	var head_col := Color(0.46, 0.48, 0.52) if broken else C_ROBOT.lightened(0.18)
+	draw_set_transform(c + Vector2(0, u * 0.36), 0.0, Vector2(1.0, 0.3))
+	draw_circle(Vector2.ZERO, u * 0.30, Color(0, 0, 0, 0.35))
+	draw_set_transform(c, 0.0, Vector2(f, 1.0))  # on dessine vers la droite ; f retourne le dessin
+	# chenilles
+	_rr(Rect2(-u * 0.27, u * 0.20 + b, u * 0.54, u * 0.16), Color(0.16, 0.17, 0.20), u * 0.07)
+	for wx in [-0.18, 0.0, 0.18]:
+		draw_circle(Vector2(u * wx, u * 0.28 + b), u * 0.04, Color(0.42, 0.44, 0.50))
+	# bras du fond, corps, insigne
+	_rr(Rect2(-u * 0.28, u * 0.01 + b, u * 0.07, u * 0.18), body_col.darkened(0.25), u * 0.03)
+	_rr(Rect2(-u * 0.20, -u * 0.02 + b, u * 0.40, u * 0.26), body_col, u * 0.06)
+	_rr(Rect2(-u * 0.18, -u * 0.015 + b, u * 0.36, u * 0.045), body_col.lightened(0.3), u * 0.02)
+	draw_rect(Rect2(-u * 0.20, u * 0.17 + b, u * 0.40, u * 0.03), body_col.darkened(0.35))
+	draw_circle(Vector2(0, u * 0.09 + b), u * 0.05, Color(0.95, 0.80, 0.25))
+	# bras avant + lampe de poche
+	_rr(Rect2(u * 0.19, u * 0.01 + b, u * 0.07, u * 0.15), body_col.darkened(0.12), u * 0.03)
+	_rr(Rect2(u * 0.24, u * 0.04 + b, u * 0.17, u * 0.08), Color(0.18, 0.19, 0.22), u * 0.03)
+	var lens := Color(0.30, 0.30, 0.30) if broken else Color(1.0, 0.95, 0.65)
+	draw_rect(Rect2(u * 0.39, u * 0.035 + b, u * 0.03, u * 0.09), lens)
+	# tête, visière et yeux
+	_rr(Rect2(-u * 0.16, -u * 0.29 + b, u * 0.32, u * 0.26), head_col, u * 0.08)
+	_rr(Rect2(-u * 0.10, -u * 0.25 + b, u * 0.25, u * 0.14), Color(0.07, 0.09, 0.15), u * 0.05)
+	if broken:
+		for ex in [0.0, 0.09]:
+			var ec := Vector2(u * (ex + 0.02), -u * 0.18 + b)
+			var d := u * 0.03
+			draw_line(ec + Vector2(-d, -d), ec + Vector2(d, d), Color(0.95, 0.3, 0.3), 2.0)
+			draw_line(ec + Vector2(-d, d), ec + Vector2(d, -d), Color(0.95, 0.3, 0.3), 2.0)
+	else:
+		draw_circle(Vector2(u * 0.02, -u * 0.18 + b), u * 0.03, Color(0.45, 0.92, 1.0))
+		draw_circle(Vector2(u * 0.11, -u * 0.18 + b), u * 0.03, Color(0.45, 0.92, 1.0))
+	# casquette de vigile
+	_rr(Rect2(-u * 0.15, -u * 0.37 + b, u * 0.30, u * 0.10), Color(0.12, 0.16, 0.32), u * 0.04)
+	_rr(Rect2(u * 0.05, -u * 0.30 + b, u * 0.19, u * 0.035), Color(0.09, 0.12, 0.25), u * 0.015)
+	draw_circle(Vector2(0, -u * 0.33 + b), u * 0.025, Color(0.95, 0.80, 0.25))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if broken:  # un peu de fumée
+		for j in 3:
+			draw_circle(c + Vector2(-u * 0.04 + j * u * 0.05, -u * 0.45 - j * u * 0.09), u * (0.04 + 0.01 * j), Color(0.7, 0.7, 0.7, 0.55 - 0.15 * j))
+	_rr(Rect2(c - Vector2(u * 0.36, u * 0.44), Vector2(u * 0.72, u * 0.84)),
+		Color(0, 0, 0, 0), u * 0.08, Color(0.95, 0.35, 0.35) if broken else Color(1, 1, 1, 0.85 if hovered else 0.0), 2 if (hovered or broken) else 0)
+
+
+## L'intrus : voleur à pull rayé et masque ; assommé, il est allongé avec des étoiles.
+func _draw_thief(lay: Dictionary, it: Dictionary) -> void:
+	var u: float = lay.cell * 1.12
+	var cell: float = lay.cell
+	var p: float = float(it.pos)
+	if it.state == "actif":
+		p = _smooth(it.prev, it.pos)
+	var c := Vector2(lay.x0 + (lay.k + p + 0.5) * cell, lay.y0 + (RAIL_ROW + 0.5) * cell)
+	var f: float = float(it.dir)
+	var b := _bob(it.prev, it.pos, u) if it.state == "actif" else 0.0
+	var down: bool = it.state == "arrete"
+	draw_set_transform(c + Vector2(0, u * 0.34), 0.0, Vector2(1.0, 0.3))
+	draw_circle(Vector2.ZERO, u * 0.26, Color(0, 0, 0, 0.35))
+	if down:
+		draw_set_transform(c + Vector2(0, u * 0.12), PI / 2.0 * f, Vector2.ONE)
+	else:
+		draw_set_transform(c, 0.0, Vector2(f, 1.0))
+	# jambes, pull rayé, sac, tête, masque, bonnet
+	_rr(Rect2(-u * 0.12, u * 0.18 + b, u * 0.09, u * 0.16), Color(0.15, 0.15, 0.2), u * 0.03)
+	_rr(Rect2(u * 0.03, u * 0.18 + b, u * 0.09, u * 0.16), Color(0.15, 0.15, 0.2), u * 0.03)
+	_rr(Rect2(-u * 0.20, -u * 0.04 + b, u * 0.14, u * 0.2), Color(0.55, 0.42, 0.25), u * 0.05)
+	_rr(Rect2(-u * 0.15, -u * 0.04 + b, u * 0.30, u * 0.24), Color(0.93, 0.93, 0.95), u * 0.05)
+	for sy in [0.0, 0.08, 0.16]:
+		draw_rect(Rect2(-u * 0.15, u * (0.01 + sy) + b, u * 0.30, u * 0.035), Color(0.12, 0.12, 0.16))
+	draw_circle(Vector2(0, -u * 0.14 + b), u * 0.13, Color(0.93, 0.78, 0.62))
+	draw_rect(Rect2(-u * 0.13, -u * 0.17 + b, u * 0.26, u * 0.07), Color(0.08, 0.08, 0.1))
+	draw_circle(Vector2(u * 0.04, -u * 0.135 + b), u * 0.015, Color.WHITE)
+	draw_circle(Vector2(u * 0.09, -u * 0.135 + b), u * 0.015, Color.WHITE)
+	draw_arc(Vector2(0, -u * 0.17 + b), u * 0.13, PI, TAU, 12, Color(0.25, 0.25, 0.30), u * 0.06)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if down:
+		var t := Time.get_ticks_msec() / 400.0
+		for j in 3:
+			var a := t + j * TAU / 3.0
+			draw_circle(c + Vector2(cos(a) * u * 0.22, -u * 0.12 + sin(a) * u * 0.06), u * 0.035, Color(1.0, 0.90, 0.30))
+
+
+## La nuit : l'extérieur est un peu assombri, l'intérieur beaucoup, sauf la case du robot et celle
+## qu'éclaire sa lampe. Les lampadaires éclairent la pelouse.
+func _draw_night(lay: Dictionary, lamps: Array) -> void:
+	var cell: float = lay.cell
+	var k: int = lay.k
+	var l: int = lay.l
+	var night := Color(0.02, 0.03, 0.08)
+	var box := Rect2(_cell_rect(lay, 2, 1).position, Vector2(cell * (l + 2), cell * (ROWS - 2)))
+	var out := Color(night, 0.30)
+	draw_rect(Rect2(0, 0, size.x, box.position.y), out)
+	draw_rect(Rect2(0, box.end.y, size.x, size.y - box.end.y), out)
+	draw_rect(Rect2(0, box.position.y, box.position.x, box.size.y), out)
+	draw_rect(Rect2(box.end.x, box.position.y, size.x - box.end.x, box.size.y), out)
+	var lit: Dictionary = {}
+	for rb in world.robots:
+		if rb.hs:
 			continue
-		var p: float = float(it.pos)
-		if it.state == "actif":
-			p = _smooth(it.prev, it.pos)
-		var c := Vector2(lay.x0 + (k + p + 0.5) * cell, lay.y0 + (RAIL_ROW + 0.5) * cell)
-		if it.state == "arrete":
-			draw_circle(c, cell * 0.26, C_CAUGHT)
-			draw_string(font, c + Vector2(-5, 6), "✓", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.BLACK)
-		else:
-			draw_circle(c, cell * 0.26, C_INTRUDER)
-			draw_string(font, c + Vector2(-4, 6), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
-	# robots
-	for i in world.robots.size():
-		var rb: Dictionary = world.robots[i]
-		var rr := _robot_rect(lay, rb)
-		var broken: bool = rb.hs
-		draw_rect(rr, Color(0.28, 0.30, 0.34) if broken else C_ROBOT)
-		var edge := Color(0.9, 0.3, 0.3) if broken else (Color.WHITE if i == hover else Color(1, 1, 1, 0.6))
-		draw_rect(rr, edge, false, 3.0 if i == hover else 2.0)
-		var c2 := rr.get_center()
-		var ex := rr.size.x * 0.18
-		var ey := -rr.size.y * 0.1
-		var er := rr.size.x * 0.09
-		if broken:
-			for sx in [-1.0, 1.0]:
-				var ec: Vector2 = c2 + Vector2(sx * ex, ey)
-				draw_line(ec + Vector2(-er, -er), ec + Vector2(er, er), Color(0.9, 0.3, 0.3), 2.5)
-				draw_line(ec + Vector2(-er, er), ec + Vector2(er, -er), Color(0.9, 0.3, 0.3), 2.5)
-			draw_line(c2 + Vector2(0, -rr.size.y * 0.5), c2 + Vector2(rr.size.x * 0.12, -rr.size.y * 0.68), Color(0.7, 0.7, 0.7), 2.0)
-		else:
-			draw_circle(c2 + Vector2(-ex, ey), er, Color.WHITE)
-			draw_circle(c2 + Vector2(ex, ey), er, Color.WHITE)
-			draw_line(c2 + Vector2(0, -rr.size.y * 0.5), c2 + Vector2(0, -rr.size.y * 0.8), Color.WHITE, 2.0)
-		if rb.vm.thinking and not broken:
-			draw_texture_rect(_brain(), Rect2(rr.end.x - 14.0, rr.position.y - 36.0, 40, 40), false)
-		draw_string(font, Vector2(rr.position.x - 10.0, rr.end.y + 16.0), String(rb.nom) + (" (HS)" if broken else ""),
-			HORIZONTAL_ALIGNMENT_CENTER, rr.size.x + 20.0, 13, Color(1.0, 0.55, 0.55) if broken else Color(1, 1, 1, 0.9))
-		if i == hover:
-			draw_string(font, Vector2(rr.position.x - 40.0, rr.position.y - 20.0), "clic : programmer",
-				HORIZONTAL_ALIGNMENT_CENTER, rr.size.x + 80.0, 13, Color(1, 1, 1, 0.9))
-
-
-var _brain_tex: Texture2D = null
+		lit[k + rb.pos] = true
+		lit[k + rb.pos + rb.facing] = true
+	for r in range(1, ROWS - 1):
+		for c in range(2, k + l + 1):
+			var rc := _cell_rect(lay, c, r)
+			if r == RAIL_ROW and lit.has(c):
+				draw_rect(rc, Color(night, 0.06))
+				draw_rect(rc, Color(1.0, 0.88, 0.55, 0.13))
+			else:
+				draw_rect(rc, Color(night, 0.55))
+	# faisceaux des lampes de poche
+	for rb in world.robots:
+		if rb.hs:
+			continue
+		var f: float = float(rb.facing)
+		var c := _robot_center(lay, rb)
+		var o := c + Vector2(f * cell * 0.42, cell * 0.08)
+		var far := o + Vector2(f * cell * 1.1, 0.0)
+		draw_polygon(
+			PackedVector2Array([o, far + Vector2(0, -cell * 0.45), far + Vector2(0, cell * 0.45)]),
+			PackedColorArray([Color(1.0, 0.93, 0.62, 0.38), Color(1.0, 0.93, 0.62, 0.0), Color(1.0, 0.93, 0.62, 0.0)]))
+	# halos des lampadaires
+	for lp in lamps:
+		for j in 16:
+			draw_circle(lp, cell * (2.4 - j * 0.14), Color(1.0, 0.90, 0.55, 0.018))
 
 
 ## Petit cerveau (dessiné en SVG) : affiché quand la réflexion prend le pas sur une action.
@@ -184,21 +479,3 @@ func _brain() -> Texture2D:
 		img.load_svg_from_string(svg)
 		_brain_tex = ImageTexture.create_from_image(img)
 	return _brain_tex
-
-
-## Étagères : unités de 3 cases de long, 1 case de large, alignées sur la grille.
-func _draw_shelves(lay: Dictionary) -> void:
-	var cols: int = lay.cols
-	var usable := cols - 2
-	var n := (usable + 1) / (SHELF_LEN + 1)
-	var used := n * (SHELF_LEN + 1) - 1
-	var start := 1 + (usable - used) / 2
-	for row in SHELF_ROWS:
-		for u in n:
-			var c0: int = start + u * (SHELF_LEN + 1)
-			for j in SHELF_LEN:
-				var r := _cell_rect(lay, c0 + j, row)
-				draw_rect(r.grow(-1.0), Color(0.12, 0.13, 0.15))
-				var col: Color = CRATES[(u * 7 + j * 3 + row * 5) % CRATES.size()]
-				draw_rect(r.grow(-6.0), col)
-				draw_rect(Rect2(r.position.x + 6.0, r.position.y + 6.0, r.size.x - 12.0, 4.0), col.lightened(0.2))

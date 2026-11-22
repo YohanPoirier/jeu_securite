@@ -65,7 +65,7 @@ func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 	for spec in specs:
 		var start := clampi(int(spec.get("depart", 0)), 0, length - 1)
 		var code = codes.get(spec.id, [])
-		var rb := {"id": spec.id, "nom": spec.get("nom", spec.id), "pos": start, "prev": start, "vm": null, "hs": code == null}
+		var rb := {"id": spec.id, "nom": spec.get("nom", spec.id), "pos": start, "prev": start, "vm": null, "hs": code == null, "facing": 1}
 		var vm := VM.new(code if code != null else [], self, level.get("builtins", []))
 		vm.robot_ref = rb
 		vm.budget = int(level.get("reflexion", 200))
@@ -84,10 +84,12 @@ func call_api(name: String, args: Array, rb: Dictionary):
 		return PyOps.err("TypeError : %s() attend %d argument(s), pas %d." % [name, API_ARITY[name], args.size()])
 	match name:
 		"avancer":
+			rb.facing = 1  # le robot regarde (et éclaire) du côté où il va
 			if rb.pos < length - 1:
 				rb.pos += 1
 			return {"value": null, "cost": 1}
 		"reculer":
+			rb.facing = -1
 			if rb.pos > 0:
 				rb.pos -= 1
 			return {"value": null, "cost": 1}

@@ -140,6 +140,8 @@ func _build_ui() -> void:
 	# fond : l'entrepôt, plein écran
 	view = RailView.new()
 	view.set_anchors_preset(Control.PRESET_FULL_RECT)
+	view.inset_top = TOP_H  # l'entrepôt se centre entre les deux barres
+	view.inset_bottom = BOTTOM_H
 	view.robot_clicked.connect(_open_editor)
 	add_child(view)
 
