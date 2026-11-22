@@ -389,13 +389,7 @@ func _draw_warehouse(lay: Dictionary, font: Font) -> void:
 	_draw_walls(lay, walls)
 	# portes aux extrémités du couloir
 	for gc in [k - 1, right]:
-		var gr := _cell_rect(lay, gc, RAIL_ROW)
-		draw_rect(gr, C_DOOR.darkened(0.55))
-		var s := 0.0
-		while s < gr.size.y:
-			if int(s / 9.0) % 2 == 0:
-				draw_rect(Rect2(gr.position.x + 3.0, gr.position.y + s, gr.size.x - 6.0, minf(9.0, gr.size.y - s)), C_DOOR.darkened(0.1))
-			s += 9.0
+		_draw_gate(_cell_rect(lay, gc, RAIL_ROW), gc == k - 1)
 	draw_string(font, _cell_rect(lay, 0, RAIL_ROW).position + Vector2(0, cell * 0.6), "porte",
 		HORIZONTAL_ALIGNMENT_RIGHT, cell * 1.9, 13, C_DOOR)
 	draw_string(font, _cell_rect(lay, right + 1, RAIL_ROW).position + Vector2(cell * 0.1, cell * 0.6), "porte",
@@ -404,7 +398,7 @@ func _draw_warehouse(lay: Dictionary, font: Font) -> void:
 
 ## Style des murs : true = traits fins (la case reste non marchable, mais le mur est dessiné étroit),
 ## false = cases de mur pleines (ancien style).
-const THIN_WALLS := true
+const THIN_WALLS := false
 const WALL_T := 0.34  # épaisseur d'un mur fin, en fraction de case
 
 
@@ -464,6 +458,29 @@ func _draw_wall(rc: Rect2) -> void:
 			draw_line(Vector2(x, y), Vector2(x, y + th), C_MORTAR, 1.0)
 	draw_rect(Rect2(rc.position, Vector2(rc.size.x, rc.size.y * 0.10)), C_WALL.lightened(0.20))
 	draw_rect(rc, C_MORTAR.darkened(0.2), false, 1.0)
+
+
+## Porte de l'entrepôt : encadrement de briques, deux battants d'acier, petit voyant au-dessus.
+func _draw_gate(rc: Rect2, left_side: bool) -> void:
+	_draw_wall(rc)
+	var inner := rc.grow(-rc.size.x * 0.12)
+	draw_rect(inner, Color(0.16, 0.17, 0.20))
+	var half := inner.size.x / 2.0
+	for i in 2:
+		var leaf := Rect2(inner.position.x + half * i + 1.0, inner.position.y + 1.0, half - 2.0, inner.size.y - 2.0)
+		draw_rect(leaf, Color(0.40, 0.43, 0.48))
+		draw_rect(Rect2(leaf.position, Vector2(leaf.size.x, 3.0)), Color(0.55, 0.58, 0.63))
+		for j in 3:  # nervures horizontales
+			var y := leaf.position.y + leaf.size.y * (0.25 + 0.25 * j)
+			draw_line(Vector2(leaf.position.x + 2.0, y), Vector2(leaf.end.x - 2.0, y), Color(0.30, 0.32, 0.37), 2.0)
+	var mid_x := inner.get_center().x
+	draw_line(Vector2(mid_x, inner.position.y), Vector2(mid_x, inner.end.y), Color(0.10, 0.10, 0.12), 2.0)
+	# poignées de part et d'autre de la jointure
+	draw_rect(Rect2(mid_x - 5.0, inner.get_center().y - 4.0, 3.0, 8.0), C_DOOR)
+	draw_rect(Rect2(mid_x + 2.0, inner.get_center().y - 4.0, 3.0, 8.0), C_DOOR)
+	draw_rect(inner, Color(0.08, 0.08, 0.10), false, 1.5)
+	# voyant
+	draw_circle(Vector2(mid_x, rc.position.y + rc.size.y * 0.07), 3.0, Color(0.95, 0.30, 0.25))
 
 
 func _draw_doorway(rc: Rect2) -> void:
@@ -598,7 +615,7 @@ func _draw_thief(lay: Dictionary, it: Dictionary, slot := {"off": Vector2.ZERO, 
 func _update_night(lay: Dictionary, lamps: Array, slots: Dictionary) -> void:
 	var cell: float = lay.cell
 	var mat: ShaderMaterial = _night.material
-	var box := Rect2(_cell_rect(lay, lay.k, 2).position, Vector2(cell * lay.l, cell * (ROWS - 4)))
+	var box := Rect2(_cell_rect(lay, 2, 1).position, Vector2(cell * (lay.l + 2), cell * (ROWS - 2)))
 	mat.set_shader_parameter("box", Vector4(box.position.x, box.position.y, box.size.x, box.size.y))
 	mat.set_shader_parameter("cell", cell)
 	var pos := PackedVector2Array()
