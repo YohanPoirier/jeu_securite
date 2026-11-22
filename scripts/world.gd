@@ -1,10 +1,11 @@
 extends RefCounted
-## Le monde d'un niveau : un rail, un robot, des intrus qui apparaissent au milieu
-## et filent vers l'une des deux portes (aux extrémités). Simulation par ticks, déterministe
-## pour une graine donnée.
+## Le monde d'un niveau : un rail dans un entrepôt, un ou plusieurs robots, des intrus qui
+## apparaissent au milieu et filent vers l'une des deux portes (aux extrémités).
+## Simulation par ticks, déterministe pour une graine donnée.
 ##
-## Ordre d'un tick : 1) le robot exécute son programme  2) les intrus avancent  3) interceptions.
-## Un intrus est arrêté si le robot est sur sa case, ou s'ils se sont croisés pendant le tick.
+## Ordre d'un tick : 1) chaque robot exécute son programme (dans l'ordre de la liste)
+##                   2) les intrus avancent  3) interceptions.
+## Un intrus est arrêté si un robot est sur sa case, ou s'ils se sont croisés pendant le tick.
 
 const VM = preload("res://scripts/vm.gd")
 const PyOps = preload("res://scripts/pyops.gd")
@@ -26,7 +27,7 @@ const API_DOC := {
 
 var level: Dictionary
 var length := 6
-var robot: Dictionary = {}
+var robots: Array = []
 var intruders: Array = []
 var tick_n := 0
 var status := "en_cours"  # en_cours | victoire | defaite | erreur
@@ -35,7 +36,8 @@ var seed_used := 0
 var duree_max := 150
 
 
-func _init(p_level: Dictionary, code: Array, p_seed: int) -> void:
+## codes : {id du robot -> code compilé}. Un robot sans code reste immobile.
+func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 	level = p_level
 	seed_used = p_seed
 	var rng := RandomNumberGenerator.new()
@@ -59,8 +61,14 @@ func _init(p_level: Dictionary, code: Array, p_seed: int) -> void:
 			"spawn": spawn, "dir": d, "periode": periode, "t0": 0,
 			"pos": centre, "prev": centre, "state": "attente",
 		})
-	var vm := VM.new(code, self, level.get("builtins", []))
-	robot = {"pos": 0, "prev": 0, "vm": vm}
+	var specs: Array = level.get("robots", [{"id": "robot", "nom": "Robot", "depart": 0}])
+	for spec in specs:
+		var start := clampi(int(spec.get("depart", 0)), 0, length - 1)
+		var rb := {"id": spec.id, "nom": spec.get("nom", spec.id), "pos": start, "prev": start, "vm": null}
+		var vm := VM.new(codes.get(spec.id, []), self, level.get("builtins", []))
+		vm.robot_ref = rb
+		rb.vm = vm
+		robots.append(rb)
 
 
 # ---------- API fournie aux programmes ----------
@@ -69,28 +77,28 @@ func has_api(name: String) -> bool:
 	return API_ARITY.has(name)
 
 
-func call_api(name: String, args: Array):
+func call_api(name: String, args: Array, rb: Dictionary):
 	if args.size() != API_ARITY[name]:
 		return PyOps.err("TypeError : %s() attend %d argument(s), pas %d." % [name, API_ARITY[name], args.size()])
 	match name:
 		"avancer":
-			if robot.pos < length - 1:
-				robot.pos += 1
+			if rb.pos < length - 1:
+				rb.pos += 1
 			return {"value": null, "cost": 1}
 		"reculer":
-			if robot.pos > 0:
-				robot.pos -= 1
+			if rb.pos > 0:
+				rb.pos -= 1
 			return {"value": null, "cost": 1}
 		"attendre":
 			if typeof(args[0]) != TYPE_INT or args[0] < 0:
 				return PyOps.err("ValueError : attendre(n) attend un nombre entier positif ou nul.")
 			return {"value": null, "cost": args[0]}
 		"fin_de_rail":
-			return {"value": robot.pos == length - 1, "cost": 0}
+			return {"value": rb.pos == length - 1, "cost": 0}
 		"debut_de_rail":
-			return {"value": robot.pos == 0, "cost": 0}
+			return {"value": rb.pos == 0, "cost": 0}
 		"position":
-			return {"value": robot.pos, "cost": 0}
+			return {"value": rb.pos, "cost": 0}
 		"longueur":
 			return {"value": length, "cost": 0}
 	return PyOps.err("Fonction inconnue : %s" % name)
@@ -99,20 +107,25 @@ func call_api(name: String, args: Array):
 # ---------- simulation ----------
 
 func _caught(it: Dictionary) -> bool:
-	return robot.pos == it.pos or (robot.prev == it.pos and robot.pos == it.prev)
+	for rb in robots:
+		if rb.pos == it.pos or (rb.prev == it.pos and rb.pos == it.prev):
+			return true
+	return false
 
 
 func tick() -> void:
 	if status != "en_cours":
 		return
 	tick_n += 1
-	robot.prev = robot.pos
-	var vm = robot.vm
-	vm.step()
-	if not vm.error.is_empty():
-		status = "erreur"
-		message = "Ligne %d : %s" % [vm.error.line, vm.error.msg]
-		return
+	for rb in robots:
+		rb.prev = rb.pos
+	for rb in robots:
+		var vm = rb.vm
+		vm.step()
+		if not vm.error.is_empty():
+			status = "erreur"
+			message = "%s — ligne %d : %s" % [rb.nom, vm.error.line, vm.error.msg]
+			return
 	var all_caught := true
 	for it in intruders:
 		it.prev = it.pos

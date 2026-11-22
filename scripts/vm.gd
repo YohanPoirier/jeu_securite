@@ -19,6 +19,7 @@ var builtins: Array = []
 var printed: Array = []
 var budget := 2000
 var last_line := 0
+var robot_ref = null  # le robot (dictionnaire du monde) qui exécute cette VM
 
 
 func _init(p_code: Array, p_host, p_builtins: Array) -> void:
@@ -169,7 +170,7 @@ func _call(name: String, args: Array):
 			return null
 		return {"value": v, "cost": 0}
 	if host != null and host.has_api(name):
-		var r = host.call_api(name, args)
+		var r = host.call_api(name, args, robot_ref)
 		if r is PyOps.PyError:
 			_fail(r.msg)
 			return null

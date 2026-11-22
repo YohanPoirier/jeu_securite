@@ -33,5 +33,14 @@
   "print"
  ],
  "code_initial": "n = longueur() - 1\nwhile True:\n    # avancer n fois, puis reculer n fois\n    pass\n",
- "solution": "n = longueur() - 1\nwhile True:\n    i = 0\n    while i < n:\n        avancer()\n        i = i + 1\n    i = 0\n    while i < n:\n        reculer()\n        i += 1\n"
+ "robots": [
+  {
+   "id": "garde",
+   "nom": "Garde",
+   "depart": 0
+  }
+ ],
+ "solutions": {
+  "garde": "n = longueur() - 1\nwhile True:\n    i = 0\n    while i < n:\n        avancer()\n        i = i + 1\n    i = 0\n    while i < n:\n        reculer()\n        i += 1\n"
+ }
 }

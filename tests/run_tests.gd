@@ -150,12 +150,19 @@ func load_level(id: String) -> Dictionary:
 	return d if d is Dictionary else {}
 
 
-func play(level: Dictionary, code: String, seed_value: int) -> World:
-	var res := Interp.compile(code, level.get("syntaxe", []), level.get("api", []), level.get("builtins", []))
-	if not res.ok:
-		print("   (compilation) Ligne %d : %s" % [res.line, res.msg])
-		return null
-	var w := World.new(level, res.code, seed_value)
+func compile_all(level: Dictionary, sources: Dictionary) -> Dictionary:
+	var compiled := {}
+	for id in sources:
+		var res := Interp.compile(sources[id], level.get("syntaxe", []), level.get("api", []), level.get("builtins", []))
+		if not res.ok:
+			print("   (compilation %s) Ligne %d : %s" % [id, res.line, res.msg])
+			return {}
+		compiled[id] = res.code
+	return compiled
+
+
+func play(level: Dictionary, compiled: Dictionary, seed_value: int) -> World:
+	var w := World.new(level, compiled, seed_value)
 	var guard := 0
 	while w.status == "en_cours" and guard < 1000:
 		w.tick()
@@ -170,29 +177,28 @@ func test_levels() -> void:
 		ok(not lv.is_empty(), "niveau/" + id + "/lisible")
 		if lv.is_empty():
 			continue
+		var compiled := compile_all(lv, lv.solutions)
+		ok(not compiled.is_empty(), "niveau/%s/solutions compilent" % id)
+		if compiled.is_empty():
+			continue
+		for spec in lv.robots:
+			ok(lv.solutions.has(spec.id), "niveau/%s/solution du robot %s" % [id, spec.id])
 		var wins := 0
 		var first_loss := ""
 		for s in range(1, 61):
-			var w := play(lv, lv.solution, s)
-			if w == null:
-				ok(false, "niveau/%s/solution compile" % id)
-				break
+			var w := play(lv, compiled, s)
 			if w.status == "victoire":
 				wins += 1
 			elif first_loss == "":
 				first_loss = "graine %d : %s %s" % [s, w.status, w.message]
 		ok(wins == 60, "niveau/%s/solution gagne sur 60 graines" % id, "(%d/60) %s" % [wins, first_loss])
-		# un robot qui ne fait rien ne doit PAS gagner à tous les coups
+		# des robots qui ne font rien ne doivent PAS gagner à tous les coups
+		var idle := {}
+		for spec in lv.robots:
+			idle[spec.id] = []
 		var idle_wins := 0
 		for s in range(1, 61):
-			var w := play(lv, "while True:\n    pass\n", s) if false else null
-			var res := Interp.compile("x = 0\n", ALL_SYNTAX, [], ALL_BUILTINS)
-			var w2 := World.new(lv, res.code, s)
-			var g := 0
-			while w2.status == "en_cours" and g < 1000:
-				w2.tick()
-				g += 1
-			if w2.status == "victoire":
+			if play(lv, idle, s).status == "victoire":
 				idle_wins += 1
 		ok(idle_wins < 60, "niveau/%s/ne rien faire ne suffit pas" % id, "(%d/60 victoires sans rien faire)" % idle_wins)
-		print("niveau %s : solution %d/60, robot inactif %d/60" % [id, wins, idle_wins])
+		print("niveau %s : solution %d/60, robots inactifs %d/60" % [id, wins, idle_wins])

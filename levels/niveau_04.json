@@ -35,5 +35,14 @@
   "range"
  ],
  "code_initial": "n = longueur() - 1\nwhile True:\n    for i in range(n):\n        avancer()\n    # à toi de jouer\n",
- "solution": "n = longueur() - 1\nwhile True:\n    for i in range(n):\n        avancer()\n    for i in range(n):\n        reculer()\n"
+ "robots": [
+  {
+   "id": "garde",
+   "nom": "Garde",
+   "depart": 0
+  }
+ ],
+ "solutions": {
+  "garde": "n = longueur() - 1\nwhile True:\n    for i in range(n):\n        avancer()\n    for i in range(n):\n        reculer()\n"
+ }
 }

@@ -10,7 +10,17 @@ func _init() -> void:
 		main.unlock_all.button_pressed = true
 		main._select_level(i)
 		await process_frame
-		main.editor.text = main.levels[i].solution
+		if not main.briefing_panel.visible:
+			print("ÉCHEC : l'énoncé devrait s'afficher au début du niveau")
+			fails += 1
+		main._show_briefing(false)
+		# clic sur un robot -> son éditeur s'ouvre
+		var rid: String = main.levels[i].robots[0].id
+		main._open_editor(rid)
+		if not main.editor_panel.visible or main.open_robot != rid:
+			print("ÉCHEC : l'éditeur ne s'ouvre pas")
+			fails += 1
+		main.editors[rid].text = main.levels[i].solutions[rid]
 		main.seed_edit.text = "7"
 		main._on_run()
 		var guard := 0
@@ -22,9 +32,29 @@ func _init() -> void:
 		print("niveau %d : %s (%s)" % [i + 1, st, main.world.message])
 		if st != "victoire":
 			fails += 1
-	# erreur de syntaxe affichée
+	# vrai clic de souris sur le robot dans l'entrepôt
 	main._select_level(0)
-	main.editor.text = "if True:\n    avancer()\n"
+	main._show_briefing(false)
+	main._close_editor()
+	await process_frame
+	var lay: Dictionary = main.view._layout()
+	var pos: Vector2 = main.view._robot_center(lay, main.world.robots[0])
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT
+	ev.pressed = true
+	ev.position = pos
+	main.view._gui_input(ev)
+	print("clic sur le robot -> éditeur ouvert : ", main.editor_panel.visible)
+	if not main.editor_panel.visible:
+		fails += 1
+	# erreur de syntaxe : l'éditeur du robot fautif s'ouvre et la ligne est signalée
+	main._select_level(0)
+	main._show_briefing(false)
+	main._close_editor()
+	main.editors["garde"].text = "if True:\n    avancer()\n"
 	main._on_run()
-	print("console après erreur : ", main.console.get_parsed_text().strip_edges().split("\n")[-1])
+	print("éditeur ouvert après erreur : ", main.editor_panel.visible)
+	print("console : ", main.console.get_parsed_text().strip_edges().split("\n")[-1])
+	if not main.editor_panel.visible:
+		fails += 1
 	quit(fails)

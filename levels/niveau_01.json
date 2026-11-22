@@ -23,5 +23,14 @@
   "print"
  ],
  "code_initial": "# Écris ton programme ici.\n# Un appel de fonction s'écrit : avancer()\n# « while True: » répète le bloc indenté sans fin.\nwhile True:\n    avancer()\n",
- "solution": "while True:\n    avancer()\n    avancer()\n    avancer()\n    avancer()\n    avancer()\n    reculer()\n    reculer()\n    reculer()\n    reculer()\n    reculer()\n"
+ "robots": [
+  {
+   "id": "garde",
+   "nom": "Garde",
+   "depart": 0
+  }
+ ],
+ "solutions": {
+  "garde": "while True:\n    avancer()\n    avancer()\n    avancer()\n    avancer()\n    avancer()\n    reculer()\n    reculer()\n    reculer()\n    reculer()\n    reculer()\n"
+ }
 }

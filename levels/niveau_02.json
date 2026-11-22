@@ -29,5 +29,14 @@
   "print"
  ],
  "code_initial": "while True:\n    while not fin_de_rail():\n        avancer()\n    # à toi : revenir au début du rail\n",
- "solution": "while True:\n    while not fin_de_rail():\n        avancer()\n    while not debut_de_rail():\n        reculer()\n"
+ "robots": [
+  {
+   "id": "garde",
+   "nom": "Garde",
+   "depart": 0
+  }
+ ],
+ "solutions": {
+  "garde": "while True:\n    while not fin_de_rail():\n        avancer()\n    while not debut_de_rail():\n        reculer()\n"
+ }
 }
