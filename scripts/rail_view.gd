@@ -129,6 +129,11 @@ func _smooth(prev: int, pos: int) -> float:
 	return lerpf(float(prev), float(pos), u)
 
 
+func _smooth_t() -> float:
+	var u := clampf(alpha / MOVE_FRACTION, 0.0, 1.0)
+	return u * u * (3.0 - 2.0 * u)
+
+
 func _robot_center(lay: Dictionary, rb: Dictionary) -> Vector2:
 	var col: float = lay.k + _smooth(rb.prev, rb.pos)
 	return Vector2(lay.x0 + (col + 0.5) * lay.cell, lay.y0 + (RAIL_ROW + 0.5) * lay.cell)
@@ -145,7 +150,7 @@ func _slots() -> Dictionary:
 		by_cell[key] = by_cell.get(key, []) + ["r" + str(rb.id)]
 	for j in world.intruders.size():
 		if world.intruders[j].state != "attente":
-			var key2: int = world.intruders[j].pos
+			var key2: int = world.intruders[j].x + world.intruders[j].ry * 1000
 			by_cell[key2] = by_cell.get(key2, []) + ["t" + str(j)]
 	var out: Dictionary = {}
 	for key in by_cell:
@@ -370,8 +375,9 @@ func _draw_warehouse(lay: Dictionary, font: Font) -> void:
 	# étagères au fond de chaque salle (rangée du haut et du bas)
 	for room in rooms:
 		for j in room.w:
-			_draw_shelf(_cell_rect(lay, room.c0 + j, 2), room.c0 + j, 2)
-			_draw_shelf(_cell_rect(lay, room.c0 + j, ROWS - 3), room.c0 + j, ROWS - 3)
+			var rel: int = room.c0 + j - k
+			_draw_shelf(_cell_rect(lay, room.c0 + j, 2), room.c0 + j, 2, world != null and world.taken.has(Vector2i(rel, -3)))
+			_draw_shelf(_cell_rect(lay, room.c0 + j, ROWS - 3), room.c0 + j, ROWS - 3, world != null and world.taken.has(Vector2i(rel, 3)))
 	var walls: Dictionary = {}
 	# murs : pourtour, cloisons du couloir (avec une ouverture par salle) et séparations de salles
 	for c in range(2, right + 1):
@@ -393,7 +399,7 @@ func _draw_warehouse(lay: Dictionary, font: Font) -> void:
 	_draw_walls(lay, walls)
 	# portes aux extrémités du couloir
 	for gc in [k - 1, right]:
-		_draw_gate(_cell_rect(lay, gc, RAIL_ROW), gc == k - 1, font)
+		_draw_gate(_cell_rect(lay, gc, RAIL_ROW), gc == k - 1, font, 0 if gc == k - 1 else 1)
 
 
 ## Style des murs : true = traits fins (la case reste non marchable, mais le mur est dessiné étroit),
@@ -462,7 +468,7 @@ func _draw_wall(rc: Rect2) -> void:
 
 ## Porte de l'entrepôt : fine plaque dorée au milieu de la case, herbe côté extérieur, poignées
 ## des deux côtés et petit tapis d'accueil devant.
-func _draw_gate(rc: Rect2, left_side: bool, font: Font) -> void:
+func _draw_gate(rc: Rect2, left_side: bool, font: Font, gate_i := 0) -> void:
 	var sgn := -1.0 if left_side else 1.0  # direction de l'extérieur
 	var cx := rc.get_center().x
 	var out_rc := Rect2(rc.position.x if left_side else cx, rc.position.y, rc.size.x / 2.0, rc.size.y)
@@ -478,15 +484,29 @@ func _draw_gate(rc: Rect2, left_side: bool, font: Font) -> void:
 	draw_rect(mat, Color(0.55, 0.20, 0.18))
 	draw_rect(mat.grow(-3.0), Color(0.40, 0.14, 0.14), false, 1.5)
 	draw_string(font, Vector2(mat.position.x, mat.get_center().y + 3.5), "WELCOME", HORIZONTAL_ALIGNMENT_CENTER, mat.size.x, 8, Color(0.95, 0.85, 0.65))
-	# plaque
-	var slab := Rect2(cx - w / 2.0, rc.position.y, w, rc.size.y)
+	# plaque : pivote autour de sa charnière (en haut) selon l'état de la porte
+	var state := "ferme"
+	if world != null:
+		state = String(world.gates[gate_i].state)
+	var angle := 0.0
+	match state:
+		"force":
+			angle = deg_to_rad(10.0 + 22.0 * absf(sin(Time.get_ticks_msec() / 90.0)))  # elle tressaute
+		"entrouverte":
+			angle = deg_to_rad(28.0)
+		"ouverte":
+			angle = deg_to_rad(80.0)
+	if left_side:
+		angle = -angle  # elle s'ouvre vers l'intérieur
+	draw_set_transform(Vector2(cx, rc.position.y), angle, Vector2.ONE)
+	var slab := Rect2(-w / 2.0, 0.0, w, rc.size.y)
 	draw_rect(slab, C_DOOR)
 	draw_rect(Rect2(slab.position, Vector2(slab.size.x * 0.4, slab.size.y)), C_DOOR.lightened(0.25))
 	draw_rect(slab, C_DOOR.darkened(0.55), false, 2.0)
-	# poignées de chaque côté, vers le bord de la porte (pas au milieu)
-	var hy := rc.position.y + rc.size.y * (0.72 if left_side else 0.28) - 4.0  # la poignée change de bout selon l'orientation de la porte
+	var hy := rc.size.y * (0.72 if left_side else 0.28) - 4.0  # la poignée change de bout selon l'orientation
 	draw_rect(Rect2(slab.position.x - 3.0, hy, 3.0, 8.0), Color(0.30, 0.22, 0.10))
 	draw_rect(Rect2(slab.end.x, hy, 3.0, 8.0), Color(0.30, 0.22, 0.10))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _draw_doorway(rc: Rect2) -> void:
@@ -497,12 +517,14 @@ func _draw_doorway(rc: Rect2) -> void:
 
 
 ## Une étagère (une case) : montants, deux niveaux, caisses et tonneaux.
-func _draw_shelf(rc: Rect2, c: int, r: int) -> void:
+func _draw_shelf(rc: Rect2, c: int, r: int, stolen := false) -> void:
 	draw_rect(rc.grow(-1.0), Color(0.20, 0.21, 0.24))
 	var half := rc.size.y / 2.0
 	for lvl in 2:
 		var y0 := rc.position.y + lvl * half
 		draw_rect(Rect2(rc.position.x + 2.0, y0 + half - 4.0, rc.size.x - 4.0, 3.0), Color(0.50, 0.38, 0.26))
+		if stolen and lvl == 1:  # un objet a été volé : l'étage du bas est vide
+			continue
 		var h := _hash(c * 7 + lvl, r * 3)
 		var col: Color = CRATES[h % CRATES.size()]
 		if h % 5 == 0:  # tonneau
@@ -583,12 +605,14 @@ func _draw_robot(lay: Dictionary, rb: Dictionary, hovered: bool, slot := {"off":
 func _draw_thief(lay: Dictionary, it: Dictionary, slot := {"off": Vector2.ZERO, "sc": 1.0}) -> void:
 	var u: float = lay.cell * 1.12 * slot.sc
 	var cell: float = lay.cell
-	var p: float = float(it.pos)
+	var px: float = float(it.x)
+	var py: float = float(it.ry)
 	if it.state == "actif":
-		p = _smooth(it.prev, it.pos)
-	var c: Vector2 = Vector2(lay.x0 + (lay.k + p + 0.5) * cell, lay.y0 + (RAIL_ROW + 0.5) * cell) + slot.off * cell
-	var f: float = float(it.dir)
-	var b := _bob(it.prev, it.pos, u) if it.state == "actif" else 0.0
+		px = lerpf(float(it.px), float(it.x), _smooth_t())
+		py = lerpf(float(it.py), float(it.ry), _smooth_t())
+	var c: Vector2 = Vector2(lay.x0 + (lay.k + px + 0.5) * cell, lay.y0 + (RAIL_ROW + py + 0.5) * cell) + slot.off * cell
+	var f: float = float(it.face)
+	var b := _bob(it.px, it.x, u) if it.state == "actif" else 0.0
 	var down: bool = it.state == "arrete"
 	draw_set_transform(c + Vector2(0, u * 0.34), 0.0, Vector2(1.0, 0.3))
 	draw_circle(Vector2.ZERO, u * 0.26, Color(0, 0, 0, 0.35))
@@ -608,6 +632,9 @@ func _draw_thief(lay: Dictionary, it: Dictionary, slot := {"off": Vector2.ZERO, 
 	draw_circle(Vector2(u * 0.04, -u * 0.135 + b), u * 0.015, Color.WHITE)
 	draw_circle(Vector2(u * 0.09, -u * 0.135 + b), u * 0.015, Color.WHITE)
 	draw_arc(Vector2(0, -u * 0.17 + b), u * 0.13, PI, TAU, 12, Color(0.25, 0.25, 0.30), u * 0.06)
+	if it.loot:  # le butin : une caisse tenue devant lui
+		_rr(Rect2(u * 0.10, u * 0.02 + b, u * 0.20, u * 0.17), Color(0.80, 0.60, 0.25), u * 0.02)
+		draw_rect(Rect2(u * 0.10, u * 0.08 + b, u * 0.20, u * 0.025), Color(0.55, 0.38, 0.15))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	if down:
 		var t := Time.get_ticks_msec() / 400.0

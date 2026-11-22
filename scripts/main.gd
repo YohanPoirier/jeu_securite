@@ -726,7 +726,7 @@ func _help_text(tab: String) -> String:
 	var t := ""
 	match tab:
 		"interface":
-			t += "[b]L'entrepôt[/b]\nTon robot circule sur un rail. Des intrus entrent dans l'entrepôt : il doit les arrêter avant qu'ils n'atteignent une porte.\n\n"
+			t += "[b]L'entrepôt[/b]\nTon robot circule sur un rail. Des voleurs forcent une porte, volent un objet dans une salle puis essaient de ressortir avec : il doit les arrêter avant qu'ils ne sortent.\n\n"
 			t += "[b]Programmer un robot[/b]\nClique sur un robot : son éditeur s'ouvre à gauche. Chaque robot a son propre programme. ↺ remet le code de départ, ✕ ferme l'éditeur.\n\n"
 			t += "[b]Lancer[/b]\n▶ Lancer démarre l'attaque. La petite flèche ▲ permet de choisir une nouvelle attaque, ou de rejouer une ancienne (Attaque 1, 2, 3…) pour déboguer : un rejeu ne valide pas le niveau. ■ Arrêter interrompt la simulation.\n\n"
 			t += "[b]Vitesse[/b]\nLe bouton compteur règle la vitesse. La simulation est en pause tant qu'on n'a pas choisi.\n\n"

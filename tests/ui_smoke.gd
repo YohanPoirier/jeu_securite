@@ -50,7 +50,7 @@ func _init() -> void:
 		while main.running and g < 2000:
 			main._process(0.1)
 			g += 1
-		traces.append([w1.length, w1.tick_n, w1.status, w1.intruders.map(func(it): return it.dir)])
+		traces.append([w1.length, w1.tick_n, w1.status, w1.intruders.map(func(it): return it.side)])
 	print("rejeu identique : ", traces[0] == traces[1], " ", traces[0])
 	if traces[0] != traces[1]:
 		fails += 1

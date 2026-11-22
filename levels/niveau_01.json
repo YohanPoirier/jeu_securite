@@ -1,7 +1,7 @@
 {
  "id": "niveau_01",
  "titre": "Premier garde",
- "enonce": "Le rail fait 6 cases (0 à 5). Un intrus apparaît au milieu, puis file vers l'une des deux portes, aux extrémités. Ton robot doit le toucher (même case, ou croisement) avant qu'il n'atteigne une porte. Le robot part de la case 0. Chaque action dure 1 tick. Écris une patrouille qui boucle indéfiniment.",
+ "enonce": "Le rail fait 6 cases (0 à 5). Des voleurs arrivent de l'extérieur, forcent une porte, prennent un objet dans une salle puis essaient de ressortir. Ton robot regarde dans le sens où il va : vu() dit si un voleur est sur sa case ou la case devant lui, assommer() l'arrête. Le robot part de la case 0. Chaque action dure 1 tick. Écris une patrouille qui boucle indéfiniment.",
  "longueur": 6,
  "reflexion": 200,
  "intrus": {
@@ -13,16 +13,19 @@
   "periode": 4
  },
  "syntaxe": [
-  "boucle_while"
+  "boucle_while",
+  "conditions"
  ],
  "api": [
   "avancer",
-  "reculer"
+  "reculer",
+  "vu",
+  "assommer"
  ],
  "builtins": [
   "print"
  ],
- "code_initial": "# Écris ton programme ici.\n# Un appel de fonction s'écrit : avancer()\n# « while True: » répète le bloc indenté sans fin.\nwhile True:\n    avancer()\n",
+ "code_initial": "# Un appel de fonction s'écrit : avancer()\n# « while True: » répète le bloc indenté sans fin.\n# « if vu(): » exécute le bloc seulement si un voleur est devant toi.\nwhile True:\n    avancer()\n",
  "robots": [
   {
    "id": "garde",
@@ -31,6 +34,6 @@
   }
  ],
  "solutions": {
-  "garde": "while True:\n    avancer()\n    avancer()\n    avancer()\n    avancer()\n    avancer()\n    reculer()\n    reculer()\n    reculer()\n    reculer()\n    reculer()\n"
+  "garde": "while True:\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    reculer()\n    if vu():\n        assommer()\n    reculer()\n    if vu():\n        assommer()\n    reculer()\n    if vu():\n        assommer()\n    reculer()\n    if vu():\n        assommer()\n    reculer()\n"
  }
 }

@@ -1,7 +1,7 @@
 {
  "id": "niveau_04",
  "titre": "Trois intrus",
- "enonce": "Trois intrus arrivent, un peu plus vite. La boucle for est maintenant disponible : for i in range(n): répète n fois.",
+ "enonce": "Trois intrus arrivent, un peu plus vite. La boucle for est maintenant disponible : for i in range(n): répète n fois. Les voleurs forcent une porte, prennent un objet dans une salle, puis essaient de ressortir par l'autre porte. vu() détecte un voleur sur ta case ou la case devant toi ; assommer() l'arrête.",
  "longueur": [
   8,
   12
@@ -28,7 +28,9 @@
   "reculer",
   "longueur",
   "position",
-  "attendre"
+  "attendre",
+  "vu",
+  "assommer"
  ],
  "builtins": [
   "print",
@@ -43,6 +45,6 @@
   }
  ],
  "solutions": {
-  "garde": "n = longueur() - 1\nwhile True:\n    for i in range(n):\n        avancer()\n    for i in range(n):\n        reculer()\n"
+  "garde": "n = longueur() - 1\nwhile True:\n    for i in range(n):\n        if vu():\n            assommer()\n        avancer()\n    for i in range(n):\n        if vu():\n            assommer()\n        reculer()\n"
  }
 }
