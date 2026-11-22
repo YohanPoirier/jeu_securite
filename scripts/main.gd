@@ -836,7 +836,6 @@ func _on_run() -> void:
 		if not res.ok:
 			# le jeu ne s'arrête pas : ce robot est simplement hors service (HS)
 			_log("[color=tomato]%s — ligne %d : %s[/color]" % [_robot_name(id), res.line, _esc(res.msg)])
-			_open_editor(id)
 			_mark_line(id, res.line, ERROR_LINE)
 			broken.append(_robot_name(id))
 			compiled[id] = null
@@ -918,8 +917,6 @@ func _drain_prints() -> void:
 		_log("[color=tomato]%s — ligne %d : %s[/color]" % [e.nom, e.line, _esc(str(e.msg))])
 		_set_status("%s est tombé en panne (hors service)" % e.nom, Color.ORANGE)
 		_mark_line(e.id, e.line, ERROR_LINE)
-		if open_robot == "":
-			_open_editor(e.id)
 	world.events.clear()
 	for rb in world.robots:
 		var vm = rb.vm

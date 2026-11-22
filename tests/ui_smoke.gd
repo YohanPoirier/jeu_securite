@@ -101,13 +101,13 @@ func _init() -> void:
 	main._close_editor()
 	main.editors["garde"].text = "if True:\n    avancer()\n"
 	main._on_run()
-	print("éditeur ouvert après erreur : ", main.editor_panel.visible)
+	print("éditeur ouvert après erreur : ", main.editor_panel.visible, " (attendu : false)")
 	print("console : ", main.console.get_parsed_text().strip_edges().split("\n")[-1])
 	if not main.running or not main.world.robots[0].hs:
 		print("ÉCHEC : une erreur de syntaxe doit rendre le robot HS sans arrêter le jeu")
 		fails += 1
-	if not main.editor_panel.visible or main.out_panel.visible or not main.out_badge.visible:
-		print("ÉCHEC : l'éditeur s'ouvre sur une erreur, mais pas les sorties (seulement la pastille)")
+	if main.editor_panel.visible or main.out_panel.visible or not main.out_badge.visible:
+		print("ÉCHEC : une erreur n'ouvre ni l'éditeur ni les sorties (seulement la pastille)")
 		fails += 1
 	# print : n'ouvre pas les sorties, seule la pastille compte
 	main._select_level(0)
