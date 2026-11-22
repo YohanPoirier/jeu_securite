@@ -21,7 +21,8 @@ func _init() -> void:
 			print("ÉCHEC : l'éditeur ne s'ouvre pas")
 			fails += 1
 		main.editors[rid].text = main.levels[i].solutions[rid]
-		main.seed_edit.text = "7"
+		main.debug_check.button_pressed = true
+		main.attack_edit.text = "7"
 		main._on_run()
 		var guard := 0
 		while main.running and guard < 2000:
@@ -32,6 +33,24 @@ func _init() -> void:
 		print("niveau %d : %s (%s)" % [i + 1, st, main.world.message])
 		if st != "victoire":
 			fails += 1
+	# mode débogage : la même attaque est rejouée à l'identique
+	main._select_level(1)
+	main._set_menu(false)
+	main.debug_check.button_pressed = true
+	main.editors["garde"].text = main.levels[1].solutions["garde"]
+	main.attack_edit.text = "123"
+	var traces: Array = []
+	for r in 2:
+		main._on_run()
+		var w1 = main.world
+		var g := 0
+		while main.running and g < 2000:
+			main._process(0.1)
+			g += 1
+		traces.append([w1.length, w1.tick_n, w1.status, w1.intruders.map(func(it): return it.dir)])
+	print("rejeu identique : ", traces[0] == traces[1], " ", traces[0])
+	if traces[0] != traces[1]:
+		fails += 1
 	# vrai clic de souris sur le robot dans l'entrepôt
 	main._select_level(0)
 	main._set_menu(false)

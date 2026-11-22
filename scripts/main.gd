@@ -12,7 +12,8 @@ const RailView = preload("res://scripts/rail_view.gd")
 
 const SAVE_PATH := "user://progression.cfg"
 const TOP_H := 40
-const BOTTOM_H := 52
+const BOTTOM_H := 102
+const SPEEDS := [["Lent", 3], ["Normal", 6], ["Rapide", 12], ["Éclair", 30]]
 const EDITOR_W := 520
 const MENU_W := 640
 const PANEL_BG := Color(0.09, 0.10, 0.13)
@@ -28,6 +29,9 @@ var timer := 0.0
 var editors: Dictionary = {}  # id du robot -> CodeEdit
 var marks: Dictionary = {}  # id du robot -> ligne surlignée
 var open_robot := ""
+var tps := 6  # ticks par seconde
+var debug_mode := false
+var last_attack := -1
 
 var view
 var menu_btn: Button
@@ -35,12 +39,13 @@ var title_label: Label
 var menu_panel: PanelContainer
 var menu_text: RichTextLabel
 var level_select: OptionButton
-var seed_edit: LineEdit
 var unlock_all: CheckBox
 var btn_run: Button
 var btn_stop: Button
-var speed_slider: HSlider
-var speed_label: Label
+var debug_check: CheckButton
+var attack_box: HBoxContainer
+var attack_edit: LineEdit
+var attack_label: Label
 var tick_label: Label
 var status_label: Label
 var editor_panel: PanelContainer
@@ -123,7 +128,6 @@ func _build_ui() -> void:
 	_build_editor_panel()
 	_build_bottom_bar()
 	_build_menu()
-	_update_speed_label()
 	_refresh_level_items()
 
 
@@ -166,19 +170,31 @@ func _build_menu() -> void:
 	menu_text.fit_content = true
 	menu_text.scroll_active = false
 	mv.add_child(menu_text)
-	var row2 := HBoxContainer.new()
-	row2.add_theme_constant_override("separation", 10)
-	mv.add_child(row2)
-	row2.add_child(_label("Graine :"))
-	seed_edit = LineEdit.new()
-	seed_edit.placeholder_text = "aléatoire"
-	seed_edit.custom_minimum_size = Vector2(110, 0)
-	row2.add_child(seed_edit)
-	row2.add_child(_spacer())
 	unlock_all = CheckBox.new()
 	unlock_all.text = "Tout débloquer"
 	unlock_all.toggled.connect(func(_b): _refresh_level_items())
-	row2.add_child(unlock_all)
+	mv.add_child(unlock_all)
+
+
+## Bouton plein, de couleur, plus visible que les boutons par défaut.
+func _styled_button(text: String, color: Color) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.custom_minimum_size = Vector2(140, 46)
+	btn.add_theme_font_size_override("font_size", 18)
+	for state in ["normal", "hover", "pressed", "disabled"]:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = color
+		if state == "hover":
+			sb.bg_color = color.lightened(0.15)
+		elif state == "pressed":
+			sb.bg_color = color.darkened(0.2)
+		elif state == "disabled":
+			sb.bg_color = color.darkened(0.5)
+		sb.set_corner_radius_all(6)
+		sb.set_content_margin_all(8)
+		btn.add_theme_stylebox_override(state, sb)
+	return btn
 
 
 func _build_bottom_bar() -> void:
@@ -187,35 +203,95 @@ func _build_bottom_bar() -> void:
 	bottom.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	bottom.custom_minimum_size = Vector2(0, BOTTOM_H)
 	add_child(bottom)
+	var bv := VBoxContainer.new()
+	bv.add_theme_constant_override("separation", 6)
+	bottom.add_child(bv)
+
+	# ligne du haut : résultat de l'essai, numéro de l'attaque, tick
+	var info := HBoxContainer.new()
+	info.add_theme_constant_override("separation", 14)
+	bv.add_child(info)
+	status_label = _label("")
+	status_label.add_theme_font_size_override("font_size", 16)
+	info.add_child(status_label)
+	info.add_child(_spacer())
+	attack_label = _label("")
+	attack_label.modulate = Color(1, 1, 1, 0.6)
+	info.add_child(attack_label)
+	debug_check = CheckButton.new()
+	debug_check.text = "Mode débogage"
+	debug_check.tooltip_text = "Rejoue toujours la même attaque, pour tester ton programme."
+	debug_check.toggled.connect(_on_debug_toggled)
+	info.add_child(debug_check)
+	tick_label = _label("")
+	tick_label.modulate = Color(1, 1, 1, 0.6)
+	info.add_child(tick_label)
+
+	# ligne des commandes
 	var bh := HBoxContainer.new()
-	bh.add_theme_constant_override("separation", 10)
-	bottom.add_child(bh)
-	btn_run = Button.new()
-	btn_run.text = "▶ Lancer"
+	bh.add_theme_constant_override("separation", 12)
+	bv.add_child(bh)
+	btn_run = _styled_button("▶  Lancer", Color(0.16, 0.50, 0.28))
 	btn_run.pressed.connect(_on_run)
 	bh.add_child(btn_run)
-	btn_stop = Button.new()
-	btn_stop.text = "■ Arrêter"
+	btn_stop = _styled_button("■  Arrêter", Color(0.45, 0.20, 0.20))
+	btn_stop.custom_minimum_size = Vector2(120, 46)
 	btn_stop.pressed.connect(_on_stop)
 	bh.add_child(btn_stop)
 	bh.add_child(VSeparator.new())
-	speed_label = _label("")
-	bh.add_child(speed_label)
-	speed_slider = HSlider.new()
-	speed_slider.min_value = 1
-	speed_slider.max_value = 40
-	speed_slider.step = 1
-	speed_slider.value = 6
-	speed_slider.custom_minimum_size = Vector2(150, 0)
-	speed_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	speed_slider.value_changed.connect(func(_v): _update_speed_label())
-	bh.add_child(speed_slider)
+	bh.add_child(_label("Vitesse"))
+	var group := ButtonGroup.new()
+	for sp in SPEEDS:
+		var sb := Button.new()
+		sb.text = sp[0]
+		sb.toggle_mode = true
+		sb.button_group = group
+		sb.custom_minimum_size = Vector2(76, 40)
+		for state in ["normal", "hover", "pressed", "hover_pressed"]:
+			var box := StyleBoxFlat.new()
+			var on: bool = state.ends_with("pressed")
+			box.bg_color = Color(0.20, 0.45, 0.80) if on else Color(0.17, 0.19, 0.24)
+			if state == "hover":
+				box.bg_color = Color(0.24, 0.27, 0.34)
+			box.border_color = BORDER
+			box.set_border_width_all(1)
+			box.set_corner_radius_all(6)
+			box.set_content_margin_all(6)
+			sb.add_theme_stylebox_override(state, box)
+		sb.button_pressed = (sp[1] == tps)
+		var v: int = sp[1]
+		sb.pressed.connect(func(): tps = v)
+		bh.add_child(sb)
 	bh.add_child(_spacer())
-	status_label = _label("")
-	bh.add_child(status_label)
-	tick_label = _label("")
-	tick_label.modulate = Color(1, 1, 1, 0.6)
-	bh.add_child(tick_label)
+
+	# mode débogage : rejouer la même attaque
+	attack_box = HBoxContainer.new()
+	attack_box.add_theme_constant_override("separation", 8)
+	attack_box.visible = false
+	bh.add_child(attack_box)
+	attack_box.add_child(_label("Attaque n°"))
+	attack_edit = LineEdit.new()
+	attack_edit.custom_minimum_size = Vector2(90, 0)
+	attack_edit.placeholder_text = "?"
+	attack_edit.tooltip_text = "Chaque numéro correspond à une attaque précise : le même numéro rejoue exactement la même attaque."
+	attack_box.add_child(attack_edit)
+	var b_new := Button.new()
+	b_new.text = "Autre attaque"
+	b_new.custom_minimum_size = Vector2(0, 40)
+	b_new.pressed.connect(func(): attack_edit.text = str(_new_attack_id()))
+	attack_box.add_child(b_new)
+
+
+func _new_attack_id() -> int:
+	return randi() % 100000
+
+
+func _on_debug_toggled(on: bool) -> void:
+	debug_mode = on
+	attack_box.visible = on
+	attack_label.visible = not on
+	if on and last_attack >= 0:
+		attack_edit.text = str(last_attack)  # on rejoue l'attaque qu'on vient de voir
 
 
 func _build_editor_panel() -> void:
@@ -279,10 +355,6 @@ func _make_editor() -> CodeEdit:
 	e.syntax_highlighter = hl
 	e.visible = false
 	return e
-
-
-func _update_speed_label() -> void:
-	speed_label.text = "Vitesse : %d / s" % int(speed_slider.value)
 
 
 func _refresh_level_items() -> void:
@@ -404,16 +476,18 @@ func _on_run() -> void:
 			_mark_line(id, res.line)
 			return
 		compiled[id] = res.code
-	var s := 0
-	var txt := seed_edit.text.strip_edges()
-	if txt.is_valid_int():
-		s = txt.to_int()
+	var attack: int
+	if debug_mode and attack_edit.text.strip_edges().is_valid_int():
+		attack = attack_edit.text.strip_edges().to_int()  # même numéro = même attaque
 	else:
-		s = randi() % 1000000
+		attack = _new_attack_id()
+	last_attack = attack
+	attack_edit.text = str(attack)
+	attack_label.text = "Attaque n° %d" % attack
 	console.clear()
-	_log("[color=gray]Graine %d[/color]" % s)
+	_log("[color=gray]Attaque n° %d[/color]" % attack)
 	_set_status("", Color.WHITE)
-	world = World.new(lv, compiled, s)
+	world = World.new(lv, compiled, attack)
 	view.world = world
 	view.alpha = 1.0
 	_set_running(true)
@@ -446,7 +520,7 @@ func _stop() -> void:
 func _process(delta: float) -> void:
 	if not running or world == null:
 		return
-	var interval := 1.0 / speed_slider.value
+	var interval := 1.0 / float(tps)
 	timer += delta
 	var guard := 0
 	while timer >= interval and running and guard < 60:
@@ -491,7 +565,7 @@ func _finish() -> void:
 			_save_progress()
 		"defaite":
 			_set_status("Échec : %s" % world.message, Color.ORANGE)
-			_log("[color=orange]%s[/color] [color=gray](graine %d)[/color]" % [world.message, world.seed_used])
+			_log("[color=orange]%s[/color] [color=gray](attaque n° %d)[/color]" % [world.message, world.seed_used])
 		"erreur":
 			_set_status("Erreur dans un programme (voir la console)", Color.TOMATO)
 			_log("[color=tomato]%s[/color]" % world.message)
