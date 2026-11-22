@@ -153,7 +153,6 @@ func _draw() -> void:
 		if i == hover:
 			draw_string(font, Vector2(rr.position.x - 40.0, rr.position.y - 20.0), "clic : programmer",
 				HORIZONTAL_ALIGNMENT_CENTER, rr.size.x + 80.0, 13, Color(1, 1, 1, 0.9))
-	draw_string(font, Vector2(14, 84), "tick %d" % world.tick_n, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 1, 1, 0.55))
 
 
 ## Étagères : unités de 3 cases de long, 1 case de large, alignées sur la grille.

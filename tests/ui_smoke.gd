@@ -10,10 +10,10 @@ func _init() -> void:
 		main.unlock_all.button_pressed = true
 		main._select_level(i)
 		await process_frame
-		if not main.briefing_panel.visible:
-			print("ÉCHEC : l'énoncé devrait s'afficher au début du niveau")
+		if not main.menu_panel.visible:
+			print("ÉCHEC : le menu avec le scénario devrait se dérouler au début du niveau")
 			fails += 1
-		main._show_briefing(false)
+		main._set_menu(false)
 		# clic sur un robot -> son éditeur s'ouvre
 		var rid: String = main.levels[i].robots[0].id
 		main._open_editor(rid)
@@ -34,7 +34,7 @@ func _init() -> void:
 			fails += 1
 	# vrai clic de souris sur le robot dans l'entrepôt
 	main._select_level(0)
-	main._show_briefing(false)
+	main._set_menu(false)
 	main._close_editor()
 	await process_frame
 	var lay: Dictionary = main.view._layout()
@@ -49,7 +49,7 @@ func _init() -> void:
 		fails += 1
 	# erreur de syntaxe : l'éditeur du robot fautif s'ouvre et la ligne est signalée
 	main._select_level(0)
-	main._show_briefing(false)
+	main._set_menu(false)
 	main._close_editor()
 	main.editors["garde"].text = "if True:\n    avancer()\n"
 	main._on_run()
