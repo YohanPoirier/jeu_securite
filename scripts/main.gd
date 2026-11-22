@@ -160,7 +160,7 @@ func _build_ui() -> void:
 	console = RichTextLabel.new()
 	console.bbcode_enabled = true
 	console.scroll_following = true
-	console.custom_minimum_size = Vector2(0, 100)
+	console.custom_minimum_size = Vector2(0, 64)
 	bv.add_child(console)
 	var bh := HBoxContainer.new()
 	bv.add_child(bh)
@@ -182,7 +182,7 @@ func _build_ui() -> void:
 	editor_panel.offset_left = -580
 	editor_panel.offset_right = -8
 	editor_panel.offset_top = 64
-	editor_panel.offset_bottom = -190
+	editor_panel.offset_bottom = -140
 	editor_panel.visible = false
 	add_child(editor_panel)
 	var ev := VBoxContainer.new()
@@ -197,14 +197,15 @@ func _build_ui() -> void:
 	b_close.text = "✕"
 	b_close.pressed.connect(_close_editor)
 	eh.add_child(b_close)
-	editor_doc = RichTextLabel.new()
-	editor_doc.bbcode_enabled = true
-	editor_doc.fit_content = true
-	editor_doc.scroll_active = false
-	ev.add_child(editor_doc)
 	editor_holder = VBoxContainer.new()
 	editor_holder.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	ev.add_child(editor_holder)
+	editor_doc = RichTextLabel.new()
+	editor_doc.bbcode_enabled = true
+	editor_doc.scroll_active = true
+	editor_doc.custom_minimum_size = Vector2(0, 84)
+	editor_doc.add_theme_font_size_override("normal_font_size", 12)
+	ev.add_child(editor_doc)
 	var b_reset := Button.new()
 	b_reset.text = "↺ Code de départ"
 	b_reset.pressed.connect(_on_reset_code)
