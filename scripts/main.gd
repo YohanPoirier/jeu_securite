@@ -42,6 +42,10 @@ var run_replay := false
 var out_count := 0  # sorties non lues (pastille rouge), plafonnée à 50
 var out_badge: PanelContainer
 var warn_icon: Texture2D
+var replay_btn: Button
+var replay_bubble: PopupPanel
+var replay_title: Label
+var replay_text: Label
 var out_badge_label: Label
 
 var view
@@ -255,6 +259,20 @@ func _build_bottom_bar() -> void:
 	attack_btn.add_theme_font_size_override("font_size", 16)
 	attack_btn.tooltip_text = ATTACK_TIP
 	_apply_colors(attack_btn, Color(0.17, 0.19, 0.24), true)
+	# petit bouton d'avertissement, posé sur le bouton d'attaque (il a la priorité sur le clic)
+	replay_btn = Button.new()
+	replay_btn.flat = true
+	replay_btn.icon = _warning_icon()
+	replay_btn.tooltip_text = "Cliquer pour en savoir plus"
+	replay_btn.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	replay_btn.offset_left = 6
+	replay_btn.offset_right = 40
+	replay_btn.offset_top = 4
+	replay_btn.offset_bottom = -4
+	replay_btn.visible = false
+	replay_btn.pressed.connect(_show_replay_bubble)
+	attack_btn.add_child(replay_btn)
+	_build_replay_bubble()
 	attack_menu = _make_popup()
 	attack_menu.id_pressed.connect(_on_attack_chosen)
 	attack_btn.pressed.connect(func(): _popup_above(attack_btn, attack_menu))
@@ -375,11 +393,9 @@ func _rebuild_attack_menu() -> void:
 	for i in pm.item_count:
 		if not pm.is_item_separator(i):
 			pm.set_item_checked(i, pm.get_item_id(i) == attack_choice + 1)
-	if warn_icon == null:
-		warn_icon = _warning_icon()
 	var replay := attack_choice >= 0
 	attack_btn.text = ("Attaque %d  ▾" % (attack_choice + 1)) if replay else "Nouvelle attaque  ▾"
-	attack_btn.icon = warn_icon if replay else null  # avertissement orange en rejeu
+	replay_btn.visible = replay  # avertissement orange en rejeu
 	attack_btn.tooltip_text = _replay_msg(attack_choice + 1) if replay else ATTACK_TIP
 
 
@@ -459,6 +475,47 @@ func _build_output_panel() -> void:
 	console.selection_enabled = true
 	console.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	ov.add_child(console)
+
+
+## Grosse bulle d'explication qui s'ouvre au clic sur l'avertissement orange.
+func _build_replay_bubble() -> void:
+	replay_bubble = PopupPanel.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.12, 0.13, 0.17)
+	sb.border_color = Color(0.96, 0.65, 0.14)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(10)
+	sb.set_content_margin_all(18)
+	replay_bubble.add_theme_stylebox_override("panel", sb)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	replay_bubble.add_child(v)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 10)
+	v.add_child(head)
+	var ic := TextureRect.new()
+	ic.texture = _warning_icon()
+	ic.custom_minimum_size = Vector2(22, 22)
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	head.add_child(ic)
+	replay_title = _label("")
+	replay_title.add_theme_font_size_override("font_size", 19)
+	head.add_child(replay_title)
+	replay_text = _label("Cette partie sert uniquement à déboguer : le niveau ne sera pas validé, même si ton robot gagne.\n\nPour jouer une attaque pour de vrai, choisis « Nouvelle attaque ».")
+	replay_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	replay_text.custom_minimum_size = Vector2(360, 0)
+	replay_text.add_theme_font_size_override("font_size", 16)
+	v.add_child(replay_text)
+	add_child(replay_bubble)
+
+
+func _show_replay_bubble() -> void:
+	replay_title.text = "Rejeu de l'attaque %d" % (attack_choice + 1)
+	replay_bubble.reset_size()
+	var top_left := Vector2i(replay_btn.get_screen_transform() * Vector2.ZERO)
+	replay_bubble.popup(Rect2i(Vector2i(top_left.x, top_left.y - 220), Vector2i(400, 10)))
+	await get_tree().process_frame
+	replay_bubble.position = Vector2i(top_left.x, top_left.y - replay_bubble.size.y - 14)
 
 
 func _warning_icon() -> Texture2D:
