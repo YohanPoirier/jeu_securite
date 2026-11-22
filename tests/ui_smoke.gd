@@ -106,8 +106,8 @@ func _init() -> void:
 	if not main.running or not main.world.robots[0].hs:
 		print("ÉCHEC : une erreur de syntaxe doit rendre le robot HS sans arrêter le jeu")
 		fails += 1
-	if not main.editor_panel.visible or not main.out_panel.visible:
-		print("ÉCHEC : éditeur et sorties devraient s'ouvrir sur une erreur")
+	if not main.editor_panel.visible or main.out_panel.visible or not main.out_badge.visible:
+		print("ÉCHEC : l'éditeur s'ouvre sur une erreur, mais pas les sorties (seulement la pastille)")
 		fails += 1
 	# print : n'ouvre pas les sorties, seule la pastille compte
 	main._select_level(0)

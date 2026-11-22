@@ -835,7 +835,7 @@ func _on_run() -> void:
 		var res := Interp.compile(editors[id].text, lv.get("syntaxe", []), lv.get("api", []), lv.get("builtins", []))
 		if not res.ok:
 			# le jeu ne s'arrête pas : ce robot est simplement hors service (HS)
-			_log("[color=tomato]%s — ligne %d : %s[/color]" % [_robot_name(id), res.line, _esc(res.msg)], true)
+			_log("[color=tomato]%s — ligne %d : %s[/color]" % [_robot_name(id), res.line, _esc(res.msg)])
 			_open_editor(id)
 			_mark_line(id, res.line, ERROR_LINE)
 			broken.append(_robot_name(id))
@@ -915,7 +915,7 @@ func _esc(t: String) -> String:
 
 func _drain_prints() -> void:
 	for e in world.events:
-		_log("[color=tomato]%s — ligne %d : %s[/color]" % [e.nom, e.line, _esc(str(e.msg))], true)
+		_log("[color=tomato]%s — ligne %d : %s[/color]" % [e.nom, e.line, _esc(str(e.msg))])
 		_set_status("%s est tombé en panne (hors service)" % e.nom, Color.ORANGE)
 		_mark_line(e.id, e.line, ERROR_LINE)
 		if open_robot == "":
@@ -951,13 +951,11 @@ func _finish() -> void:
 			_set_status("Échec : %s%s" % [world.message, note], Color.ORANGE)
 
 
-## Ajoute une ligne aux sorties. Une erreur ouvre la fenêtre ; sinon, si elle est fermée,
-## seule la pastille rouge du bouton « Sorties » compte les nouvelles lignes.
-func _log(bb: String, force := false) -> void:
+## Ajoute une ligne aux sorties. La fenêtre ne s'ouvre jamais toute seule : si elle est fermée,
+## la pastille rouge du bouton « Sorties » compte les nouvelles lignes (erreurs comprises).
+func _log(bb: String) -> void:
 	console.append_text(bb + "\n")
-	if force:
-		_set_out(true)
-	elif not out_panel.visible:
+	if not out_panel.visible:
 		_count_out()
 
 
