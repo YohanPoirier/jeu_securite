@@ -368,23 +368,25 @@ func _draw_warehouse(lay: Dictionary, font: Font) -> void:
 		for j in room.w:
 			_draw_shelf(_cell_rect(lay, room.c0 + j, 2), room.c0 + j, 2)
 			_draw_shelf(_cell_rect(lay, room.c0 + j, ROWS - 3), room.c0 + j, ROWS - 3)
+	var walls: Dictionary = {}
 	# murs : pourtour, cloisons du couloir (avec une ouverture par salle) et séparations de salles
 	for c in range(2, right + 1):
-		_draw_wall(_cell_rect(lay, c, 1))
-		_draw_wall(_cell_rect(lay, c, ROWS - 2))
+		_add_wall(walls, c, 1)
+		_add_wall(walls, c, ROWS - 2)
 	for r in range(1, ROWS - 1):
 		if r != RAIL_ROW:
-			_draw_wall(_cell_rect(lay, 2, r))
-			_draw_wall(_cell_rect(lay, right, r))
+			_add_wall(walls, 2, r)
+			_add_wall(walls, right, r)
 	for c in range(k, right):
 		for r in [RAIL_ROW - 1, RAIL_ROW + 1]:
 			if door_cols.has(c):
 				_draw_doorway(_cell_rect(lay, c, r))
 			else:
-				_draw_wall(_cell_rect(lay, c, r))
+				_add_wall(walls, c, r)
 	for c in sep_cols:
 		for r in [2, 3, ROWS - 4, ROWS - 3]:
-			_draw_wall(_cell_rect(lay, c, r))
+			_add_wall(walls, c, r)
+	_draw_walls(lay, walls)
 	# portes aux extrémités du couloir
 	for gc in [k - 1, right]:
 		var gr := _cell_rect(lay, gc, RAIL_ROW)
@@ -398,6 +400,56 @@ func _draw_warehouse(lay: Dictionary, font: Font) -> void:
 		HORIZONTAL_ALIGNMENT_RIGHT, cell * 1.9, 13, C_DOOR)
 	draw_string(font, _cell_rect(lay, right + 1, RAIL_ROW).position + Vector2(cell * 0.1, cell * 0.6), "porte",
 		HORIZONTAL_ALIGNMENT_LEFT, cell * 1.9, 13, C_DOOR)
+
+
+## Style des murs : true = traits fins (la case reste non marchable, mais le mur est dessiné étroit),
+## false = cases de mur pleines (ancien style).
+const THIN_WALLS := true
+const WALL_T := 0.34  # épaisseur d'un mur fin, en fraction de case
+
+
+func _add_wall(walls: Dictionary, c: int, r: int) -> void:
+	walls[Vector2i(c, r)] = true
+
+
+func _draw_walls(lay: Dictionary, walls: Dictionary) -> void:
+	for key in walls:
+		var rc := _cell_rect(lay, key.x, key.y)
+		if not THIN_WALLS:
+			_draw_wall(rc)
+			continue
+		var cell: float = lay.cell
+		var t := cell * WALL_T
+		var ctr := rc.get_center()
+		# la case de mur est du sol, sauf en bordure de l'entrepôt (pelouse dehors)
+		var outer: bool = key.y == 1 or key.y == ROWS - 2 or key.x == 2 or key.x == lay.k + lay.l
+		# en bordure, le mur se colle au bord intérieur de sa case (côté entrepôt)
+		if key.y == 1:
+			ctr.y = rc.end.y - t / 2.0
+		elif key.y == ROWS - 2:
+			ctr.y = rc.position.y + t / 2.0
+		if key.x == 2:
+			ctr.x = rc.end.x - t / 2.0
+		elif key.x == lay.k + lay.l:
+			ctr.x = rc.position.x + t / 2.0
+		if not outer:
+			draw_rect(rc, C_FLOOR)
+			draw_rect(rc, C_TILE, false, 1.0)
+		var parts: Array = [Rect2(ctr - Vector2(t, t) / 2.0, Vector2(t, t))]
+		if walls.has(key + Vector2i(1, 0)):
+			parts.append(Rect2(ctr.x, ctr.y - t / 2.0, rc.end.x - ctr.x, t))
+		if walls.has(key + Vector2i(-1, 0)):
+			parts.append(Rect2(rc.position.x, ctr.y - t / 2.0, ctr.x - rc.position.x, t))
+		if walls.has(key + Vector2i(0, 1)):
+			parts.append(Rect2(ctr.x - t / 2.0, ctr.y, t, rc.end.y - ctr.y))
+		if walls.has(key + Vector2i(0, -1)):
+			parts.append(Rect2(ctr.x - t / 2.0, rc.position.y, t, ctr.y - rc.position.y))
+		for pr in parts:
+			draw_rect(pr, C_WALL)
+		for pr in parts:  # arête claire en haut
+			draw_rect(Rect2(pr.position, Vector2(pr.size.x, minf(3.0, pr.size.y * 0.25))), C_WALL.lightened(0.22))
+		if parts.size() == 1:  # pilier isolé : contour
+			draw_rect(parts[0], C_MORTAR.darkened(0.2), false, 1.0)
 
 
 func _draw_wall(rc: Rect2) -> void:
@@ -546,7 +598,7 @@ func _draw_thief(lay: Dictionary, it: Dictionary, slot := {"off": Vector2.ZERO, 
 func _update_night(lay: Dictionary, lamps: Array, slots: Dictionary) -> void:
 	var cell: float = lay.cell
 	var mat: ShaderMaterial = _night.material
-	var box := Rect2(_cell_rect(lay, 2, 1).position, Vector2(cell * (lay.l + 2), cell * (ROWS - 2)))
+	var box := Rect2(_cell_rect(lay, lay.k, 2).position, Vector2(cell * lay.l, cell * (ROWS - 4)))
 	mat.set_shader_parameter("box", Vector4(box.position.x, box.position.y, box.size.x, box.size.y))
 	mat.set_shader_parameter("cell", cell)
 	var pos := PackedVector2Array()
