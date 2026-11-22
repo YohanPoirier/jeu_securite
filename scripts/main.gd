@@ -667,28 +667,9 @@ func _show_modal(kind: String) -> void:
 			rt.add_theme_font_size_override("font_size", 28)
 			rt.add_theme_color_override("font_color", result_info.color)
 			rt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			rt.custom_minimum_size = Vector2(0, 60)
+			rt.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			modal_box.add_child(rt)
-			var body := _label(String(result_info.text))
-			body.add_theme_font_size_override("font_size", 17)
-			body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			body.custom_minimum_size = Vector2(MODAL_W - 20, 0)
-			modal_box.add_child(body)
-			if result_info.has("unlocked"):
-				var u := _label("Niveau %d débloqué." % result_info.unlocked)
-				u.add_theme_color_override("font_color", Color.LIGHT_GREEN)
-				u.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-				modal_box.add_child(u)
-			if result_info.hs != "":
-				var h := _label("%s : hors service (voir les sorties)." % result_info.hs)
-				h.add_theme_color_override("font_color", Color(1.0, 0.55, 0.55))
-				h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-				modal_box.add_child(h)
-			if result_info.replay:
-				var rp := _label("Rejeu : cette partie ne valide pas le niveau.")
-				rp.add_theme_color_override("font_color", REPLAY_COLOR)
-				rp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-				modal_box.add_child(rp)
 			if result_info.next:
 				modal_box.add_child(_modal_button("Niveau suivant", func(): _select_level(cur + 1)))
 			modal_box.add_child(_modal_button("Fermer", _close_modal))
