@@ -106,6 +106,20 @@ func _init() -> void:
 	if not main.editor_panel.visible or not main.out_panel.visible:
 		print("ÉCHEC : éditeur et sorties devraient s'ouvrir sur une erreur")
 		fails += 1
+	# print : n'ouvre pas les sorties, seule la pastille compte
+	main._select_level(0)
+	main._close_modal()
+	main.editors["garde"].text = "while True:\n    print(1)\n    avancer()\n"
+	main._on_run()
+	for i in 5:
+		main._process(0.2)
+	print("sorties ouvertes : ", main.out_panel.visible, " pastille : ", main.out_badge_label.text)
+	if main.out_panel.visible or not main.out_badge.visible or main.out_count < 1:
+		print("ÉCHEC : print doit seulement compter sur la pastille")
+		fails += 1
+	main._set_out(true)
+	if main.out_badge.visible:
+		fails += 1
 	# menu central : recommencer, aide, menu principal
 	for k in ["menu", "aide", "principal", "scenario"]:
 		main._show_modal(k)

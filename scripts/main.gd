@@ -38,7 +38,9 @@ var sim_paused := false  # vrai tant que le choix de vitesse est ouvert
 var attacks: Dictionary = {}  # id du niveau -> liste des attaques déjà jouées (n° 1, 2, 3...)
 var attack_choice := -1  # -1 : nouvelle attaque ; k : rejouer l'attaque n° k+1
 var run_replay := false
-var out_shown := false
+var out_count := 0  # sorties non lues (pastille rouge), plafonnée à 50
+var out_badge: PanelContainer
+var out_badge_label: Label
 
 var view
 var menu_btn: Button
@@ -163,6 +165,26 @@ func _build_menu() -> void:
 	out_btn.tooltip_text = "Affiche ou masque les sorties des programmes (print et erreurs)"
 	out_btn.pressed.connect(func(): _set_out(not out_panel.visible))
 	th.add_child(out_btn)
+	# pastille rouge façon notification : nombre de sorties non lues
+	out_badge = PanelContainer.new()
+	var bsb := StyleBoxFlat.new()
+	bsb.bg_color = Color(0.85, 0.15, 0.15)
+	bsb.set_corner_radius_all(9)
+	bsb.content_margin_left = 5
+	bsb.content_margin_right = 5
+	bsb.content_margin_top = 0
+	bsb.content_margin_bottom = 0
+	out_badge.add_theme_stylebox_override("panel", bsb)
+	out_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	out_badge.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	out_badge.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	out_badge.offset_top = -2
+	out_badge.offset_right = 8
+	out_badge.visible = false
+	out_badge_label = Label.new()
+	out_badge_label.add_theme_font_size_override("font_size", 12)
+	out_badge.add_child(out_badge_label)
+	out_btn.add_child(out_badge)
 
 
 ## Donne à un bouton un fond plein de couleur, à angles arrondis.
@@ -391,6 +413,20 @@ func _build_output_panel() -> void:
 
 func _set_out(show: bool) -> void:
 	out_panel.visible = show
+	if show:
+		_reset_out_count()
+
+
+func _reset_out_count() -> void:
+	out_count = 0
+	if out_badge != null:
+		out_badge.visible = false
+
+
+func _count_out() -> void:
+	out_count = mini(out_count + 1, 50)
+	out_badge_label.text = "50+" if out_count >= 50 else str(out_count)
+	out_badge.visible = true
 
 
 func _make_editor() -> CodeEdit:
@@ -543,7 +579,7 @@ func _close_modal() -> void:
 func _restart_level() -> void:
 	_stop()
 	console.clear()
-	out_shown = false
+	_reset_out_count()
 	out_panel.visible = false
 	attack_choice = -1
 	_rebuild_attack_menu()
@@ -625,7 +661,7 @@ func _select_level(idx: int) -> void:
 		editor_holder.add_child(e)
 		editors[spec.id] = e
 	console.clear()
-	out_shown = false
+	_reset_out_count()
 	out_panel.visible = false
 	attack_choice = -1
 	_rebuild_attack_menu()
@@ -679,7 +715,7 @@ func _on_run() -> void:
 	_save_progress()
 	_clear_marks()
 	console.clear()
-	out_shown = false
+	_reset_out_count()
 	var compiled := {}
 	for id in editors:
 		var res := Interp.compile(editors[id].text, lv.get("syntaxe", []), lv.get("api", []), lv.get("builtins", []))
@@ -798,12 +834,14 @@ func _finish() -> void:
 					_mark_line(rb.id, rb.vm.error.line)
 
 
-## Ajoute une ligne aux sorties ; la fenêtre s'ouvre à la première ligne d'un essai (ou à chaque erreur).
+## Ajoute une ligne aux sorties. Une erreur ouvre la fenêtre ; sinon, si elle est fermée,
+## seule la pastille rouge du bouton « Sorties » compte les nouvelles lignes.
 func _log(bb: String, force := false) -> void:
 	console.append_text(bb + "\n")
-	if force or not out_shown:
-		out_shown = true
+	if force:
 		_set_out(true)
+	elif not out_panel.visible:
+		_count_out()
 
 
 # ---------- surlignage de la ligne courante ----------
