@@ -39,6 +39,8 @@ var _hud: Control = null  # calque des noms et du cerveau, au-dessus de la nuit
 
 const NIGHT_SHADER := """
 shader_type canvas_item;
+uniform vec4 skip_a;         // demi-case extérieure de la porte de gauche (traitée comme dehors)
+uniform vec4 skip_b;         // idem, porte de droite
 uniform vec4 box;            // zone intérieure de l'entrepôt : x, y, largeur, hauteur (pixels)
 uniform float out_alpha = 0.30;
 uniform float in_alpha = 0.55;
@@ -54,6 +56,8 @@ void vertex() { vpos = VERTEX; }
 void fragment() {
 	vec2 p = vpos;
 	bool inside = p.x >= box.x && p.x <= box.x + box.z && p.y >= box.y && p.y <= box.y + box.w;
+	if (p.x >= skip_a.x && p.x <= skip_a.x + skip_a.z && p.y >= skip_a.y && p.y <= skip_a.y + skip_a.w) { inside = false; }
+	if (p.x >= skip_b.x && p.x <= skip_b.x + skip_b.z && p.y >= skip_b.y && p.y <= skip_b.y + skip_b.w) { inside = false; }
 	float a = inside ? in_alpha : out_alpha;
 	float light = 0.0;
 	for (int i = 0; i < 8; i++) {
@@ -390,9 +394,9 @@ func _draw_warehouse(lay: Dictionary, font: Font) -> void:
 	# portes aux extrémités du couloir
 	for gc in [k - 1, right]:
 		_draw_gate(_cell_rect(lay, gc, RAIL_ROW), gc == k - 1, font)
-	draw_string(font, _cell_rect(lay, 0, RAIL_ROW).position + Vector2(0, cell * 0.12), "porte",
+	draw_string(font, _cell_rect(lay, 0, RAIL_ROW).position + Vector2(0, -cell * 0.06), "porte",
 		HORIZONTAL_ALIGNMENT_RIGHT, cell * 1.9, 13, C_DOOR)
-	draw_string(font, _cell_rect(lay, right + 1, RAIL_ROW).position + Vector2(cell * 0.1, cell * 0.12), "porte",
+	draw_string(font, _cell_rect(lay, right + 1, RAIL_ROW).position + Vector2(cell * 0.1, -cell * 0.06), "porte",
 		HORIZONTAL_ALIGNMENT_LEFT, cell * 1.9, 13, C_DOOR)
 
 
@@ -470,21 +474,25 @@ func _draw_gate(rc: Rect2, left_side: bool, font: Font) -> void:
 	draw_rect(in_rc, C_FLOOR)
 	draw_rect(in_rc, C_TILE, false, 1.0)
 	draw_rect(out_rc, C_GRASS)
-	# tapis d'accueil, sur l'herbe, juste devant la porte
+	# tapis d'accueil, sur l'herbe, devant la porte ; le texte se lit en arrivant de l'extérieur
 	var w := rc.size.x * 0.20
 	var cell := rc.size.x
-	var mat_x := cx + sgn * w / 2.0 if not left_side else cx - w / 2.0 - cell * 0.95
-	var mat := Rect2(mat_x, rc.get_center().y - cell * 0.30, cell * 0.95, cell * 0.60)
+	var depth := cell * 0.62
+	var length := cell * 1.05
+	var mx := cx - w / 2.0 - depth if left_side else cx + w / 2.0
+	var mat := Rect2(mx, rc.get_center().y - length / 2.0, depth, length)
 	draw_rect(mat, Color(0.55, 0.20, 0.18))
 	draw_rect(mat.grow(-3.0), Color(0.40, 0.14, 0.14), false, 1.5)
-	draw_string(font, Vector2(mat.position.x, mat.get_center().y + 3.5), "WELCOME", HORIZONTAL_ALIGNMENT_CENTER, mat.size.x, 8, Color(0.95, 0.85, 0.65))
+	draw_set_transform(mat.get_center(), PI / 2.0 if left_side else -PI / 2.0, Vector2.ONE)
+	draw_string(font, Vector2(-length / 2.0, 3.5), "WELCOME", HORIZONTAL_ALIGNMENT_CENTER, length, 8, Color(0.95, 0.85, 0.65))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# plaque
 	var slab := Rect2(cx - w / 2.0, rc.position.y, w, rc.size.y)
 	draw_rect(slab, C_DOOR)
 	draw_rect(Rect2(slab.position, Vector2(slab.size.x * 0.4, slab.size.y)), C_DOOR.lightened(0.25))
 	draw_rect(slab, C_DOOR.darkened(0.55), false, 2.0)
-	# poignées de chaque côté
-	var hy := rc.get_center().y - 4.0
+	# poignées de chaque côté, vers le bord de la porte (pas au milieu)
+	var hy := rc.position.y + rc.size.y * 0.72
 	draw_rect(Rect2(slab.position.x - 3.0, hy, 3.0, 8.0), Color(0.30, 0.22, 0.10))
 	draw_rect(Rect2(slab.end.x, hy, 3.0, 8.0), Color(0.30, 0.22, 0.10))
 
@@ -624,6 +632,10 @@ func _update_night(lay: Dictionary, lamps: Array, slots: Dictionary) -> void:
 	var box := Rect2(_cell_rect(lay, 2, 1).position, Vector2(cell * (lay.l + 2), cell * (ROWS - 2)))
 	mat.set_shader_parameter("box", Vector4(box.position.x, box.position.y, box.size.x, box.size.y))
 	mat.set_shader_parameter("cell", cell)
+	var ga := _cell_rect(lay, lay.k - 1, RAIL_ROW)
+	var gb := _cell_rect(lay, lay.k + lay.l, RAIL_ROW)
+	mat.set_shader_parameter("skip_a", Vector4(ga.position.x, ga.position.y, ga.size.x / 2.0, ga.size.y))
+	mat.set_shader_parameter("skip_b", Vector4(gb.get_center().x, gb.position.y, gb.size.x / 2.0, gb.size.y))
 	var pos := PackedVector2Array()
 	var dirs := PackedVector2Array()
 	var bodies := PackedVector2Array()
