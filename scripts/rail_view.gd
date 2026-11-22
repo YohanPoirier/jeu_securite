@@ -389,10 +389,10 @@ func _draw_warehouse(lay: Dictionary, font: Font) -> void:
 	_draw_walls(lay, walls)
 	# portes aux extrémités du couloir
 	for gc in [k - 1, right]:
-		_draw_gate(_cell_rect(lay, gc, RAIL_ROW), gc == k - 1)
-	draw_string(font, _cell_rect(lay, 0, RAIL_ROW).position + Vector2(0, cell * 0.6), "porte",
+		_draw_gate(_cell_rect(lay, gc, RAIL_ROW), gc == k - 1, font)
+	draw_string(font, _cell_rect(lay, 0, RAIL_ROW).position + Vector2(0, cell * 0.12), "porte",
 		HORIZONTAL_ALIGNMENT_RIGHT, cell * 1.9, 13, C_DOOR)
-	draw_string(font, _cell_rect(lay, right + 1, RAIL_ROW).position + Vector2(cell * 0.1, cell * 0.6), "porte",
+	draw_string(font, _cell_rect(lay, right + 1, RAIL_ROW).position + Vector2(cell * 0.1, cell * 0.12), "porte",
 		HORIZONTAL_ALIGNMENT_LEFT, cell * 1.9, 13, C_DOOR)
 
 
@@ -460,15 +460,33 @@ func _draw_wall(rc: Rect2) -> void:
 	draw_rect(rc, C_MORTAR.darkened(0.2), false, 1.0)
 
 
-## Porte de l'entrepôt : une plaque pleine, simple, dans l'ouverture du mur (seuil de sol autour).
-func _draw_gate(rc: Rect2, _left_side: bool) -> void:
-	draw_rect(rc, C_FLOOR)
-	draw_rect(rc, C_TILE, false, 1.0)
+## Porte de l'entrepôt : fine plaque dorée au milieu de la case, herbe côté extérieur, poignées
+## des deux côtés et petit tapis d'accueil devant.
+func _draw_gate(rc: Rect2, left_side: bool, font: Font) -> void:
+	var sgn := -1.0 if left_side else 1.0  # direction de l'extérieur
+	var cx := rc.get_center().x
+	var out_rc := Rect2(rc.position.x if left_side else cx, rc.position.y, rc.size.x / 2.0, rc.size.y)
+	var in_rc := Rect2(cx if left_side else rc.position.x, rc.position.y, rc.size.x / 2.0, rc.size.y)
+	draw_rect(in_rc, C_FLOOR)
+	draw_rect(in_rc, C_TILE, false, 1.0)
+	draw_rect(out_rc, C_GRASS)
+	# tapis d'accueil, sur l'herbe, juste devant la porte
 	var w := rc.size.x * 0.20
-	var slab := Rect2(rc.get_center().x - w / 2.0, rc.position.y, w, rc.size.y)
+	var cell := rc.size.x
+	var mat_x := cx + sgn * w / 2.0 if not left_side else cx - w / 2.0 - cell * 0.95
+	var mat := Rect2(mat_x, rc.get_center().y - cell * 0.30, cell * 0.95, cell * 0.60)
+	draw_rect(mat, Color(0.55, 0.20, 0.18))
+	draw_rect(mat.grow(-3.0), Color(0.40, 0.14, 0.14), false, 1.5)
+	draw_string(font, Vector2(mat.position.x, mat.get_center().y + 3.5), "WELCOME", HORIZONTAL_ALIGNMENT_CENTER, mat.size.x, 8, Color(0.95, 0.85, 0.65))
+	# plaque
+	var slab := Rect2(cx - w / 2.0, rc.position.y, w, rc.size.y)
 	draw_rect(slab, C_DOOR)
 	draw_rect(Rect2(slab.position, Vector2(slab.size.x * 0.4, slab.size.y)), C_DOOR.lightened(0.25))
 	draw_rect(slab, C_DOOR.darkened(0.55), false, 2.0)
+	# poignées de chaque côté
+	var hy := rc.get_center().y - 4.0
+	draw_rect(Rect2(slab.position.x - 3.0, hy, 3.0, 8.0), Color(0.30, 0.22, 0.10))
+	draw_rect(Rect2(slab.end.x, hy, 3.0, 8.0), Color(0.30, 0.22, 0.10))
 
 
 func _draw_doorway(rc: Rect2) -> void:
