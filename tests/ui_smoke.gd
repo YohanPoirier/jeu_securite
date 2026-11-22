@@ -7,13 +7,13 @@ func _init() -> void:
 	await process_frame
 	var fails := 0
 	for i in main.levels.size():
-		main.unlock_all.button_pressed = true
+		main.unlock_all = true
 		main._select_level(i)
 		await process_frame
-		if not main.menu_panel.visible:
-			print("ÉCHEC : le menu avec le scénario devrait se dérouler au début du niveau")
+		if main.modal_kind != "scenario":
+			print("ÉCHEC : la fenêtre de scénario devrait s'afficher au début du niveau")
 			fails += 1
-		main._set_menu(false)
+		main._close_modal()
 		# clic sur un robot -> son éditeur s'ouvre
 		var rid: String = main.levels[i].robots[0].id
 		main._open_editor(rid)
@@ -34,7 +34,7 @@ func _init() -> void:
 	# anciennes attaques : numérotées 1, 2, 3 ; rejouer l'attaque 1 donne la même chose, sans valider
 	main.attacks.clear()
 	main._select_level(1)
-	main._set_menu(false)
+	main._close_modal()
 	main.editors["garde"].text = main.levels[1].solutions["garde"]
 	var traces: Array = []
 	for r in 2:
@@ -57,7 +57,7 @@ func _init() -> void:
 	# un rejeu ne valide pas le niveau
 	main.unlocked = 2
 	main._select_level(1)
-	main._set_menu(false)
+	main._close_modal()
 	main.editors["garde"].text = main.levels[1].solutions["garde"]
 	main._on_run()
 	main._on_attack_chosen(1)
@@ -82,7 +82,7 @@ func _init() -> void:
 		fails += 1
 	# vrai clic de souris sur le robot dans l'entrepôt
 	main._select_level(0)
-	main._set_menu(false)
+	main._close_modal()
 	main._close_editor()
 	await process_frame
 	var lay: Dictionary = main.view._layout()
@@ -97,7 +97,7 @@ func _init() -> void:
 		fails += 1
 	# erreur de syntaxe : l'éditeur du robot fautif s'ouvre et la ligne est signalée
 	main._select_level(0)
-	main._set_menu(false)
+	main._close_modal()
 	main._close_editor()
 	main.editors["garde"].text = "if True:\n    avancer()\n"
 	main._on_run()
@@ -105,5 +105,21 @@ func _init() -> void:
 	print("console : ", main.console.get_parsed_text().strip_edges().split("\n")[-1])
 	if not main.editor_panel.visible or not main.out_panel.visible:
 		print("ÉCHEC : éditeur et sorties devraient s'ouvrir sur une erreur")
+		fails += 1
+	# menu central : recommencer, aide, menu principal
+	for k in ["menu", "aide", "principal", "scenario"]:
+		main._show_modal(k)
+		if not main.modal.visible or main.modal_kind != k:
+			print("ÉCHEC : fenêtre ", k)
+			fails += 1
+	main._show_modal("principal")
+	main._select_level(0)
+	if main.modal_kind != "scenario":
+		fails += 1
+	main._on_run()
+	main._process(0.5)
+	main._restart_level()
+	if main.modal.visible or main.running or main.world.tick_n != 0:
+		print("ÉCHEC : recommencer le niveau")
 		fails += 1
 	quit(fails)

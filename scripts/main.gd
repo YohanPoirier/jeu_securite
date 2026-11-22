@@ -1,7 +1,8 @@
 extends Control
 ## Interface épurée : l'entrepôt en plein écran et des zones opaques par-dessus.
-##   - en haut : une barre fine (nom du niveau, bouton « Sorties ») et un menu déroulant
-##     (niveau, scénario) ; il se déroule tout seul au début d'un niveau ;
+##   - en haut : une barre fine (bouton Menu, nom du niveau, bouton « Sorties ») ;
+##   - au centre, par-dessus : un message à fermer (scénario au début du niveau) ou le menu
+##     (recommencer, aide, retour au menu principal) ;
 ##   - en bas : lancement du code (Lancer + choix de l'attaque, Arrêter, vitesse) et résultat ;
 ##   - à gauche, collé au bord : l'éditeur du robot sur lequel on a cliqué (un éditeur par robot) ;
 ##   - à droite, collé au bord : les sorties (print, erreurs), toujours avec le nom du robot.
@@ -18,7 +19,7 @@ const GREEN := Color(0.16, 0.50, 0.28)
 const REPLAY_COLOR := Color(1.0, 0.82, 0.45)
 const EDITOR_W := 520
 const OUT_W := 360
-const MENU_W := 640
+const MODAL_W := 440
 const PANEL_BG := Color(0.09, 0.10, 0.13)
 const BORDER := Color(0.20, 0.22, 0.27)
 
@@ -41,11 +42,11 @@ var out_shown := false
 
 var view
 var menu_btn: Button
+var modal: Control
+var modal_box: VBoxContainer
+var modal_kind := ""  # "" (fermé), scenario, menu, aide, principal
+var unlock_all := false
 var title_label: Label
-var menu_panel: PanelContainer
-var menu_text: RichTextLabel
-var level_select: OptionButton
-var unlock_all: CheckBox
 var btn_run: Button
 var btn_stop: Button
 var speed_btn: MenuButton
@@ -136,7 +137,7 @@ func _build_ui() -> void:
 	_build_output_panel()
 	_build_bottom_bar()
 	_build_menu()
-	_refresh_level_items()
+	_build_modal()
 
 
 func _build_menu() -> void:
@@ -149,7 +150,8 @@ func _build_menu() -> void:
 	th.add_theme_constant_override("separation", 12)
 	top.add_child(th)
 	menu_btn = Button.new()
-	menu_btn.pressed.connect(func(): _set_menu(not menu_panel.visible))
+	menu_btn.text = "☰ Menu"
+	menu_btn.pressed.connect(func(): _show_modal("menu"))
 	th.add_child(menu_btn)
 	title_label = Label.new()
 	title_label.add_theme_font_size_override("font_size", 16)
@@ -160,34 +162,6 @@ func _build_menu() -> void:
 	out_btn.tooltip_text = "Affiche ou masque les sorties des programmes (print et erreurs)"
 	out_btn.pressed.connect(func(): _set_out(not out_panel.visible))
 	th.add_child(out_btn)
-
-	# menu déroulant, sous la barre, à gauche
-	menu_panel = _panel()
-	menu_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	menu_panel.offset_top = TOP_H
-	menu_panel.custom_minimum_size = Vector2(MENU_W, 0)
-	menu_panel.visible = false
-	add_child(menu_panel)
-	var mv := VBoxContainer.new()
-	mv.add_theme_constant_override("separation", 10)
-	menu_panel.add_child(mv)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	mv.add_child(row)
-	row.add_child(_label("Niveau :"))
-	level_select = OptionButton.new()
-	level_select.custom_minimum_size = Vector2(300, 0)
-	level_select.item_selected.connect(func(i): _select_level(i))
-	row.add_child(level_select)
-	menu_text = RichTextLabel.new()
-	menu_text.bbcode_enabled = true
-	menu_text.fit_content = true
-	menu_text.scroll_active = false
-	mv.add_child(menu_text)
-	unlock_all = CheckBox.new()
-	unlock_all.text = "Tout débloquer"
-	unlock_all.toggled.connect(func(_b): _refresh_level_items())
-	mv.add_child(unlock_all)
 
 
 ## Donne à un bouton un fond plein de couleur, à angles arrondis.
@@ -332,11 +306,15 @@ func _rebuild_attack_menu() -> void:
 			pm.set_item_checked(i, pm.get_item_id(i) == attack_choice + 1)
 
 
+func _replay_msg(n: int) -> String:
+	return "↻ Rejeu de l'attaque %d — simple essai pour déboguer : cette partie ne valide pas le niveau." % n
+
+
 func _on_attack_chosen(id: int) -> void:
 	attack_choice = id - 1
 	_rebuild_attack_menu()
 	if attack_choice >= 0:
-		_set_status("Attaque %d : le niveau ne sera pas validé, c'est juste pour déboguer." % id, REPLAY_COLOR)
+		_set_status(_replay_msg(id), REPLAY_COLOR)
 	else:
 		_set_status("", Color.WHITE)
 
@@ -439,21 +417,126 @@ func _make_editor() -> CodeEdit:
 	return e
 
 
-func _refresh_level_items() -> void:
-	level_select.clear()
-	for i in levels.size():
-		level_select.add_item("%d. %s" % [i + 1, levels[i].titre])
-		level_select.set_item_disabled(i, i >= unlocked and not unlock_all.button_pressed)
-	level_select.select(cur)
+func _is_unlocked(i: int) -> bool:
+	return unlock_all or i < unlocked
 
 
-# ---------- menu déroulant ----------
+# ---------- fenêtre centrale (scénario, menu, aide, menu principal) ----------
 
-func _set_menu(show: bool) -> void:
-	menu_panel.visible = show
-	menu_btn.text = "▲ Menu" if show else "☰ Menu"
-	if show:
-		menu_text.text = _statement_text(levels[cur])
+func _build_modal() -> void:
+	modal = Control.new()
+	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
+	modal.mouse_filter = Control.MOUSE_FILTER_STOP  # bloque les clics sur le jeu derrière
+	modal.visible = false
+	add_child(modal)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.55)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	modal.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	modal.add_child(center)
+	var panel := _panel()
+	panel.get_theme_stylebox("panel").set_content_margin_all(22)
+	panel.custom_minimum_size = Vector2(MODAL_W, 0)
+	center.add_child(panel)
+	modal_box = VBoxContainer.new()
+	modal_box.add_theme_constant_override("separation", 12)
+	panel.add_child(modal_box)
+
+
+func _modal_button(text: String, cb: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(0, 44)
+	b.add_theme_font_size_override("font_size", 17)
+	b.pressed.connect(cb)
+	return b
+
+
+func _modal_title(text: String, closable: bool) -> void:
+	var row := HBoxContainer.new()
+	modal_box.add_child(row)
+	var t := _label(text)
+	t.add_theme_font_size_override("font_size", 20)
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(t)
+	if closable:
+		var x := Button.new()
+		x.text = "✕"
+		x.flat = true
+		x.pressed.connect(_close_modal)
+		row.add_child(x)
+
+
+func _show_modal(kind: String) -> void:
+	modal_kind = kind
+	for c in modal_box.get_children():
+		modal_box.remove_child(c)
+		c.queue_free()
+	match kind:
+		"scenario":
+			var l := _label("scénario")
+			l.add_theme_font_size_override("font_size", 20)
+			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			l.custom_minimum_size = Vector2(0, 80)
+			l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			modal_box.add_child(l)
+			modal_box.add_child(_modal_button("Fermer", _close_modal))
+		"menu":
+			_modal_title("Menu", true)
+			modal_box.add_child(_modal_button("Recommencer le niveau", _restart_level))
+			modal_box.add_child(_modal_button("Aide", func(): _show_modal("aide")))
+			modal_box.add_child(_modal_button("Retour au menu principal", func(): _show_modal("principal")))
+		"aide":
+			_modal_title("Aide", true)
+			var rt := RichTextLabel.new()
+			rt.bbcode_enabled = true
+			rt.fit_content = true
+			rt.scroll_active = false
+			rt.custom_minimum_size = Vector2(MODAL_W, 0)
+			rt.text = _statement_text(levels[cur])
+			modal_box.add_child(rt)
+			modal_box.add_child(_modal_button("Retour", func(): _show_modal("menu")))
+		"principal":
+			var t := _label("Garde Robot")
+			t.add_theme_font_size_override("font_size", 26)
+			t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			modal_box.add_child(t)
+			for i in levels.size():
+				var b := _modal_button("%d. %s" % [i + 1, levels[i].titre], func(): _select_level(i))
+				b.disabled = not _is_unlocked(i)
+				modal_box.add_child(b)
+			var cb := CheckBox.new()
+			cb.text = "Tout débloquer"
+			cb.button_pressed = unlock_all
+			cb.toggled.connect(func(on): unlock_all = on; _show_modal("principal"))
+			modal_box.add_child(cb)
+	modal.visible = true
+
+
+func _close_modal() -> void:
+	modal_kind = ""
+	modal.visible = false
+
+
+func _restart_level() -> void:
+	_stop()
+	console.clear()
+	out_shown = false
+	out_panel.visible = false
+	attack_choice = -1
+	_rebuild_attack_menu()
+	attack_label.text = ""
+	status_label.text = ""
+	tick_label.text = ""
+	world = World.new(levels[cur], {}, 0)
+	view.world = world
+	view.alpha = 1.0
+	view.queue_redraw()
+	_close_modal()
 
 
 func _statement_text(lv: Dictionary) -> String:
@@ -484,7 +567,6 @@ func _select_level(idx: int) -> void:
 	_stop()
 	cur = idx
 	var lv: Dictionary = levels[cur]
-	level_select.select(cur)
 	title_label.text = "Niveau %d — %s" % [cur + 1, lv.titre]
 	# un éditeur par robot
 	for id in editors:
@@ -510,7 +592,7 @@ func _select_level(idx: int) -> void:
 	view.alpha = 1.0
 	view.queue_redraw()
 	tick_label.text = ""
-	_set_menu(true)  # le scénario s'affiche au début du niveau
+	_show_modal("scenario")  # le scénario s'affiche au début du niveau
 
 
 # ---------- éditeurs ----------
@@ -525,7 +607,7 @@ func _robot_name(id: String) -> String:
 func _open_editor(id: String) -> void:
 	if not editors.has(id):
 		return
-	_set_menu(false)
+	_close_modal()
 	open_robot = id
 	for k in editors:
 		editors[k].visible = (k == id)
@@ -548,7 +630,7 @@ func _on_reset_code() -> void:
 
 func _on_run() -> void:
 	var lv: Dictionary = levels[cur]
-	_set_menu(false)
+	_close_modal()
 	_save_editors()
 	_save_progress()
 	_clear_marks()
@@ -571,7 +653,7 @@ func _on_run() -> void:
 	if run_replay:
 		attack = list[attack_choice]  # même numéro = exactement la même attaque
 		number = attack_choice + 1
-		_set_status("Attaque %d : le niveau ne sera pas validé, c'est juste pour déboguer." % number, REPLAY_COLOR)
+		_set_status(_replay_msg(number), REPLAY_COLOR)
 	else:
 		attack = _new_attack_id()
 		list.append(attack)
@@ -609,7 +691,7 @@ func _stop() -> void:
 
 
 func _process(delta: float) -> void:
-	if not running or world == null or sim_paused:
+	if not running or world == null or sim_paused or modal_kind != "":
 		return
 	var interval := 1.0 / float(tps)
 	timer += delta
@@ -659,7 +741,6 @@ func _finish() -> void:
 				if cur + 1 == unlocked and unlocked < levels.size():
 					unlocked += 1
 					msg += " Niveau %d débloqué." % unlocked
-					_refresh_level_items()
 				_set_status(msg, Color.LIGHT_GREEN)
 				_save_progress()
 		"defaite":
