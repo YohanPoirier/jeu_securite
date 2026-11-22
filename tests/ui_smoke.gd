@@ -29,6 +29,10 @@ func _init() -> void:
 		await process_frame
 		var st: String = main.world.status
 		print("niveau %d : %s (%s)" % [i + 1, st, main.world.message])
+		if main.modal_kind != "resultat":
+			print("ÉCHEC : la fenêtre de résultat devrait s'ouvrir en fin de partie")
+			fails += 1
+		main._close_modal()
 		if st != "victoire":
 			fails += 1
 	# anciennes attaques : numérotées 1, 2, 3 ; rejouer l'attaque 1 donne la même chose, sans valider

@@ -148,13 +148,13 @@ func tick() -> void:
 			elif it.pos <= 0 or it.pos >= length - 1:
 				it.state = "intrusion"
 				status = "defaite"
-				message = "Un intrus a atteint une porte au tick %d." % tick_n
+				message = "Un intrus a atteint une porte."
 				return
 		if it.state != "arrete":
 			all_caught = false
 	if all_caught:
 		status = "victoire"
-		message = "Tous les intrus ont été arrêtés (tick %d)." % tick_n
+		message = "Tous les intrus ont été arrêtés."
 	elif tick_n >= duree_max:
 		status = "defaite"
 		message = "Temps écoulé : tous les intrus n'ont pas été arrêtés."
