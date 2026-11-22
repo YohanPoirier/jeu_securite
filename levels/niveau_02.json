@@ -1,0 +1,33 @@
+{
+ "id": "niveau_02",
+ "titre": "Rail de longueur variable",
+ "enonce": "La longueur du rail change à chaque essai (entre 6 et 10 cases) : impossible de compter les pas à l'avance ! Utilise les capteurs fin_de_rail() et debut_de_rail() avec while et not.",
+ "longueur": [
+  6,
+  10
+ ],
+ "intrus": {
+  "nombre": 1,
+  "apparition": [
+   3,
+   12
+  ],
+  "periode": 4
+ },
+ "duree_max": 120,
+ "syntaxe": [
+  "boucle_while",
+  "conditions"
+ ],
+ "api": [
+  "avancer",
+  "reculer",
+  "fin_de_rail",
+  "debut_de_rail"
+ ],
+ "builtins": [
+  "print"
+ ],
+ "code_initial": "while True:\n    while not fin_de_rail():\n        avancer()\n    # à toi : revenir au début du rail\n",
+ "solution": "while True:\n    while not fin_de_rail():\n        avancer()\n    while not debut_de_rail():\n        reculer()\n"
+}

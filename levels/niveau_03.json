@@ -1,0 +1,37 @@
+{
+ "id": "niveau_03",
+ "titre": "Deux intrus",
+ "enonce": "Deux intrus, rail de longueur variable. Les capteurs de fin de rail ont disparu : à toi de compter avec des variables, grâce à longueur() et position().",
+ "longueur": [
+  6,
+  10
+ ],
+ "intrus": {
+  "nombre": 2,
+  "apparition": [
+   3,
+   10
+  ],
+  "ecart": 8,
+  "periode": 4
+ },
+ "duree_max": 160,
+ "syntaxe": [
+  "boucle_while",
+  "conditions",
+  "variables",
+  "arithmetique"
+ ],
+ "api": [
+  "avancer",
+  "reculer",
+  "longueur",
+  "position",
+  "attendre"
+ ],
+ "builtins": [
+  "print"
+ ],
+ "code_initial": "n = longueur() - 1\nwhile True:\n    # avancer n fois, puis reculer n fois\n    pass\n",
+ "solution": "n = longueur() - 1\nwhile True:\n    i = 0\n    while i < n:\n        avancer()\n        i = i + 1\n    i = 0\n    while i < n:\n        reculer()\n        i += 1\n"
+}

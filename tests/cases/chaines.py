@@ -1,0 +1,6 @@
+print("a" + "b", "ab" * 3, 3 * "x", "abc" == "abc", "a" < "b", "b" < "a")
+print("x" * 0 == "", "x" * -1 == "")
+print()
+print("un", "deux", 3, None, True, 2.5)
+print("saut\nde ligne", 'guillemets "doubles"', "l'apostrophe")
+print(str(12) + "!", str(True), str(None), str(-3))

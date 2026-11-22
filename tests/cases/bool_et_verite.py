@@ -1,0 +1,5 @@
+print(True + True, True * 5, False - 1, True == 1, True == True, False == 0)
+print(not 0, not 1, not "", not "a", not None, not not 5)
+print(0 or 5, 3 and 4, 0 and 4, "" or "x", None or 0, 1 and 0 or 7)
+print(1 < 2 < 3, 3 > 2 > 2, 1 <= 1 < 2, 1 == 1 != 2, 5 > 4 > 3 > 2, 5 > 4 > 4 > 2)
+print(None == None, None == 0, 0 == "", "a" != "b")

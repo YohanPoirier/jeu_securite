@@ -1,0 +1,39 @@
+{
+ "id": "niveau_04",
+ "titre": "Trois intrus",
+ "enonce": "Trois intrus arrivent, un peu plus vite. La boucle for est maintenant disponible : for i in range(n): répète n fois.",
+ "longueur": [
+  8,
+  12
+ ],
+ "intrus": {
+  "nombre": 3,
+  "apparition": [
+   3,
+   8
+  ],
+  "ecart": 9,
+  "periode": 4
+ },
+ "duree_max": 220,
+ "syntaxe": [
+  "boucle_while",
+  "conditions",
+  "variables",
+  "arithmetique",
+  "boucle_for"
+ ],
+ "api": [
+  "avancer",
+  "reculer",
+  "longueur",
+  "position",
+  "attendre"
+ ],
+ "builtins": [
+  "print",
+  "range"
+ ],
+ "code_initial": "n = longueur() - 1\nwhile True:\n    for i in range(n):\n        avancer()\n    # à toi de jouer\n",
+ "solution": "n = longueur() - 1\nwhile True:\n    for i in range(n):\n        avancer()\n    for i in range(n):\n        reculer()\n"
+}
