@@ -46,6 +46,7 @@ var modal: Control
 var modal_box: VBoxContainer
 var modal_kind := ""  # "" (fermé), scenario, menu, aide, principal
 var unlock_all := false
+var help_tab := "interface"
 var title_label: Label
 var btn_run: Button
 var btn_stop: Button
@@ -492,13 +493,30 @@ func _show_modal(kind: String) -> void:
 			modal_box.add_child(_modal_button("Retour au menu principal", func(): _show_modal("principal")))
 		"aide":
 			_modal_title("Aide", true)
+			var tabs := HBoxContainer.new()
+			tabs.add_theme_constant_override("separation", 8)
+			modal_box.add_child(tabs)
+			for tb in [["interface", "L'interface"], ["python", "Python"], ["robot", "Le robot"]]:
+				var b := _modal_button(tb[1], func(): help_tab = tb[0]; _show_modal("aide"))
+				b.toggle_mode = true
+				b.button_pressed = (help_tab == tb[0])
+				b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				tabs.add_child(b)
+			var sc := ScrollContainer.new()
+			sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+			sc.custom_minimum_size = Vector2(620, 360)
+			modal_box.add_child(sc)
 			var rt := RichTextLabel.new()
 			rt.bbcode_enabled = true
 			rt.fit_content = true
 			rt.scroll_active = false
-			rt.custom_minimum_size = Vector2(MODAL_W, 0)
-			rt.text = _statement_text(levels[cur])
-			modal_box.add_child(rt)
+			rt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			var mono := SystemFont.new()
+			mono.font_names = PackedStringArray(["Consolas", "DejaVu Sans Mono", "Courier New", "monospace"])
+			rt.add_theme_font_override("mono_font", mono)
+			rt.add_theme_color_override("default_color", Color(0.88, 0.9, 0.95))
+			rt.text = _help_text(help_tab)
+			sc.add_child(rt)
 			modal_box.add_child(_modal_button("Retour", func(): _show_modal("menu")))
 		"principal":
 			var t := _label("Garde Robot")
@@ -539,16 +557,42 @@ func _restart_level() -> void:
 	_close_modal()
 
 
-func _statement_text(lv: Dictionary) -> String:
-	var t := String(lv.enonce) + "\n\n[b]Fonctions du robot[/b]\n"
-	for f in lv.api:
-		t += "• " + World.API_DOC[f] + "\n"
-	for b in lv.get("builtins", []):
-		if b == "print":
-			t += "• print(...) : affiche dans la console\n"
-		elif b == "range":
-			t += "• range(n) : à utiliser avec for\n"
-	t += "\n[color=gray]Clique sur un robot pour écrire son programme.[/color]"
+func _help_text(tab: String) -> String:
+	var lv: Dictionary = levels[cur]
+	var syn: Array = lv.get("syntaxe", [])
+	var api: Array = lv.get("api", [])
+	var t := ""
+	match tab:
+		"interface":
+			t += "[b]L'entrepôt[/b]\nTon robot circule sur un rail. Des intrus entrent dans l'entrepôt : il doit les arrêter avant qu'ils n'atteignent une porte.\n\n"
+			t += "[b]Programmer un robot[/b]\nClique sur un robot : son éditeur s'ouvre à gauche. Chaque robot a son propre programme. ↺ remet le code de départ, ✕ ferme l'éditeur.\n\n"
+			t += "[b]Lancer[/b]\n▶ Lancer démarre l'attaque. La petite flèche ▲ permet de choisir une nouvelle attaque, ou de rejouer une ancienne (Attaque 1, 2, 3…) pour déboguer : un rejeu ne valide pas le niveau. ■ Arrêter interrompt la simulation.\n\n"
+			t += "[b]Vitesse[/b]\nLe bouton compteur règle la vitesse. La simulation est en pause tant qu'on n'a pas choisi.\n\n"
+			t += "[b]Sorties[/b]\nLa fenêtre de droite affiche les print et les erreurs, toujours avec le nom du robot concerné.\n\n"
+			t += "[b]Menu[/b]\nRecommencer le niveau, ouvrir cette aide, retourner au menu principal."
+		"python":
+			t += "[b]Un programme[/b]\nUn programme est une suite d'instructions, une par ligne, exécutées dans l'ordre. Appeler une fonction s'écrit avec des parenthèses :\n[code]avancer()[/code]\nUn # commence un commentaire, ignoré par l'ordinateur. L'indentation (4 espaces) compte : elle indique ce qui appartient à un bloc.\n\n"
+			if "boucle_while" in syn:
+				t += "[b]Répéter : while[/b]\n[code]while True:\n    avancer()[/code]\nTrue signifie « vrai, toujours » : le bloc indenté se répète sans fin.\n\n"
+			if "conditions" in syn:
+				var cond := "fin_de_rail()" if api.has("fin_de_rail") else "position() < longueur() - 1"
+				t += "[b]Décider : if / elif / else[/b]\n[code]if %s:\n    avancer()\nelse:\n    reculer()[/code]\nOn compare avec ==, !=, <, <=, >, >= et on combine avec and, or, not. elif signifie « sinon si ».\n\n" % cond
+			if "variables" in syn:
+				t += "[b]Variables[/b]\n[code]n = 3\nwhile n > 0:\n    avancer()\n    n = n - 1[/code]\nUne variable garde une valeur ; on peut la modifier.\n\n"
+			if "arithmetique" in syn:
+				t += "[b]Calculs[/b]\n[code]+  -  *  //  %[/code]\n// est la division entière (7 // 2 vaut 3) et % le reste (7 % 2 vaut 1).\n\n"
+			if "boucle_for" in syn:
+				t += "[b]Répéter n fois : for[/b]\n[code]for i in range(3):\n    avancer()[/code]\n\n"
+			t += "[color=gray]D'autres notions se débloquent au fil des niveaux.[/color]"
+		"robot":
+			t += "[b]Fonctions du robot (ce niveau)[/b]\n"
+			for f in api:
+				t += "• " + World.API_DOC[f] + "\n"
+			for b in lv.get("builtins", []):
+				if b == "print":
+					t += "• print(...) : affiche dans la fenêtre des sorties\n"
+				elif b == "range":
+					t += "• range(n) : à utiliser avec for\n"
 	return t
 
 
