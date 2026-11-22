@@ -460,27 +460,21 @@ func _draw_wall(rc: Rect2) -> void:
 	draw_rect(rc, C_MORTAR.darkened(0.2), false, 1.0)
 
 
-## Porte de l'entrepôt : encadrement de briques, deux battants d'acier, petit voyant au-dessus.
+## Porte de l'entrepôt : une fine plaque d'acier dans l'ouverture du mur (seuil de sol de chaque côté).
 func _draw_gate(rc: Rect2, left_side: bool) -> void:
-	_draw_wall(rc)
-	var inner := rc.grow(-rc.size.x * 0.12)
-	draw_rect(inner, Color(0.16, 0.17, 0.20))
-	var half := inner.size.x / 2.0
-	for i in 2:
-		var leaf := Rect2(inner.position.x + half * i + 1.0, inner.position.y + 1.0, half - 2.0, inner.size.y - 2.0)
-		draw_rect(leaf, Color(0.40, 0.43, 0.48))
-		draw_rect(Rect2(leaf.position, Vector2(leaf.size.x, 3.0)), Color(0.55, 0.58, 0.63))
-		for j in 3:  # nervures horizontales
-			var y := leaf.position.y + leaf.size.y * (0.25 + 0.25 * j)
-			draw_line(Vector2(leaf.position.x + 2.0, y), Vector2(leaf.end.x - 2.0, y), Color(0.30, 0.32, 0.37), 2.0)
-	var mid_x := inner.get_center().x
-	draw_line(Vector2(mid_x, inner.position.y), Vector2(mid_x, inner.end.y), Color(0.10, 0.10, 0.12), 2.0)
-	# poignées de part et d'autre de la jointure
-	draw_rect(Rect2(mid_x - 5.0, inner.get_center().y - 4.0, 3.0, 8.0), C_DOOR)
-	draw_rect(Rect2(mid_x + 2.0, inner.get_center().y - 4.0, 3.0, 8.0), C_DOOR)
-	draw_rect(inner, Color(0.08, 0.08, 0.10), false, 1.5)
-	# voyant
-	draw_circle(Vector2(mid_x, rc.position.y + rc.size.y * 0.07), 3.0, Color(0.95, 0.30, 0.25))
+	draw_rect(rc, C_FLOOR)
+	draw_rect(rc, C_TILE, false, 1.0)
+	var w := rc.size.x * 0.24
+	var slab := Rect2(rc.get_center().x - w / 2.0, rc.position.y + 2.0, w, rc.size.y - 4.0)
+	draw_rect(slab, Color(0.40, 0.43, 0.48))
+	draw_rect(Rect2(slab.position, Vector2(slab.size.x * 0.35, slab.size.y)), Color(0.55, 0.58, 0.63))
+	for j in 4:  # nervures
+		var y := slab.position.y + slab.size.y * (0.18 + 0.21 * j)
+		draw_line(Vector2(slab.position.x, y), Vector2(slab.end.x, y), Color(0.28, 0.30, 0.35), 1.5)
+	draw_rect(slab, Color(0.08, 0.08, 0.10), false, 1.5)
+	var hx := slab.end.x - 4.0 if left_side else slab.position.x + 1.0
+	draw_rect(Rect2(hx, rc.get_center().y - 5.0, 3.0, 10.0), C_DOOR)
+	draw_circle(Vector2(rc.get_center().x, rc.position.y + 5.0), 3.0, Color(0.95, 0.30, 0.25))
 
 
 func _draw_doorway(rc: Rect2) -> void:
