@@ -460,21 +460,15 @@ func _draw_wall(rc: Rect2) -> void:
 	draw_rect(rc, C_MORTAR.darkened(0.2), false, 1.0)
 
 
-## Porte de l'entrepôt : une fine plaque d'acier dans l'ouverture du mur (seuil de sol de chaque côté).
-func _draw_gate(rc: Rect2, left_side: bool) -> void:
+## Porte de l'entrepôt : une plaque pleine, simple, dans l'ouverture du mur (seuil de sol autour).
+func _draw_gate(rc: Rect2, _left_side: bool) -> void:
 	draw_rect(rc, C_FLOOR)
 	draw_rect(rc, C_TILE, false, 1.0)
-	var w := rc.size.x * 0.24
-	var slab := Rect2(rc.get_center().x - w / 2.0, rc.position.y + 2.0, w, rc.size.y - 4.0)
-	draw_rect(slab, Color(0.40, 0.43, 0.48))
-	draw_rect(Rect2(slab.position, Vector2(slab.size.x * 0.35, slab.size.y)), Color(0.55, 0.58, 0.63))
-	for j in 4:  # nervures
-		var y := slab.position.y + slab.size.y * (0.18 + 0.21 * j)
-		draw_line(Vector2(slab.position.x, y), Vector2(slab.end.x, y), Color(0.28, 0.30, 0.35), 1.5)
-	draw_rect(slab, Color(0.08, 0.08, 0.10), false, 1.5)
-	var hx := slab.end.x - 4.0 if left_side else slab.position.x + 1.0
-	draw_rect(Rect2(hx, rc.get_center().y - 5.0, 3.0, 10.0), C_DOOR)
-	draw_circle(Vector2(rc.get_center().x, rc.position.y + 5.0), 3.0, Color(0.95, 0.30, 0.25))
+	var w := rc.size.x * 0.20
+	var slab := Rect2(rc.get_center().x - w / 2.0, rc.position.y, w, rc.size.y)
+	draw_rect(slab, C_DOOR)
+	draw_rect(Rect2(slab.position, Vector2(slab.size.x * 0.4, slab.size.y)), C_DOOR.lightened(0.25))
+	draw_rect(slab, C_DOOR.darkened(0.55), false, 2.0)
 
 
 func _draw_doorway(rc: Rect2) -> void:
