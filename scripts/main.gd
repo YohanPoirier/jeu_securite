@@ -16,6 +16,7 @@ const TOP_H := 40
 const BOTTOM_H := 102
 const SPEEDS := [["Lent (×½)", 3], ["Normal (×1)", 6], ["Rapide (×2)", 12], ["Très rapide (×4)", 24]]
 const GREEN := Color(0.16, 0.50, 0.28)
+const ATTACK_TIP := "Attaque à lancer : une nouvelle, ou une ancienne à rejouer pour déboguer"
 const REPLAY_COLOR := Color(1.0, 0.82, 0.45)
 const EDITOR_W := 520
 const OUT_W := 360
@@ -40,6 +41,9 @@ var attack_choice := -1  # -1 : nouvelle attaque ; k : rejouer l'attaque n° k+1
 var run_replay := false
 var out_count := 0  # sorties non lues (pastille rouge), plafonnée à 50
 var out_badge: PanelContainer
+var attack_chip: PanelContainer
+var chip_label: Label
+var chip_warn: TextureRect
 var out_badge_label: Label
 
 var view
@@ -138,6 +142,7 @@ func _build_ui() -> void:
 
 	_build_editor_panel()
 	_build_output_panel()
+	_build_attack_chip()
 	_build_bottom_bar()
 	_build_menu()
 	_build_modal()
@@ -251,7 +256,7 @@ func _build_bottom_bar() -> void:
 	attack_btn = Button.new()
 	attack_btn.custom_minimum_size = Vector2(210, 46)
 	attack_btn.add_theme_font_size_override("font_size", 16)
-	attack_btn.tooltip_text = "Attaque à lancer : une nouvelle, ou une ancienne à rejouer pour déboguer"
+	attack_btn.tooltip_text = ATTACK_TIP
 	_apply_colors(attack_btn, Color(0.17, 0.19, 0.24), true)
 	attack_menu = _make_popup()
 	attack_menu.id_pressed.connect(_on_attack_chosen)
@@ -377,16 +382,13 @@ func _rebuild_attack_menu() -> void:
 
 
 func _replay_msg(n: int) -> String:
-	return "↻ Rejeu de l'attaque %d — simple essai pour déboguer : cette partie ne valide pas le niveau." % n
+	return "Rejeu de l'attaque %d : simple essai pour déboguer, cette partie ne valide pas le niveau." % n
 
 
 func _on_attack_chosen(id: int) -> void:
 	attack_choice = id - 1
 	_rebuild_attack_menu()
-	if attack_choice >= 0:
-		_set_status(_replay_msg(id), REPLAY_COLOR)
-	else:
-		_set_status("", Color.WHITE)
+	attack_btn.tooltip_text = _replay_msg(id) if attack_choice >= 0 else ATTACK_TIP
 
 
 func _build_editor_panel() -> void:
@@ -456,6 +458,47 @@ func _build_output_panel() -> void:
 	console.selection_enabled = true
 	console.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	ov.add_child(console)
+
+
+## Étiquette posée sur l'entrepôt : numéro de l'attaque en cours, et un petit avertissement orange en rejeu.
+func _build_attack_chip() -> void:
+	attack_chip = _panel()
+	attack_chip.get_theme_stylebox("panel").set_corner_radius_all(6)
+	attack_chip.get_theme_stylebox("panel").set_content_margin_all(6)
+	attack_chip.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	attack_chip.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	attack_chip.offset_top = TOP_H + 10
+	attack_chip.visible = false
+	add_child(attack_chip)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 8)
+	attack_chip.add_child(h)
+	chip_label = _label("")
+	chip_label.add_theme_font_size_override("font_size", 15)
+	h.add_child(chip_label)
+	chip_warn = TextureRect.new()
+	chip_warn.texture = _warning_icon()
+	chip_warn.custom_minimum_size = Vector2(20, 20)
+	chip_warn.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	chip_warn.mouse_filter = Control.MOUSE_FILTER_STOP  # pour que l'info-bulle s'affiche
+	chip_warn.visible = false
+	h.add_child(chip_warn)
+
+
+func _warning_icon() -> Texture2D:
+	var svg := """<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
+<path d="M12 3 L22 20.5 H2 Z" fill="#f5a524" stroke="#f5a524" stroke-width="2" stroke-linejoin="round"/>
+<rect x="11" y="9" width="2" height="6.5" rx="1" fill="#1a1a1a"/><circle cx="12" cy="17.6" r="1.2" fill="#1a1a1a"/></svg>"""
+	var img := Image.new()
+	img.load_svg_from_string(svg)
+	return ImageTexture.create_from_image(img)
+
+
+func _show_chip(number: int, replay: bool) -> void:
+	chip_label.text = "Attaque %d" % number
+	chip_warn.visible = replay
+	chip_warn.tooltip_text = _replay_msg(number)
+	attack_chip.visible = true
 
 
 func _set_out(show: bool) -> void:
@@ -630,6 +673,7 @@ func _restart_level() -> void:
 	out_panel.visible = false
 	attack_choice = -1
 	_rebuild_attack_menu()
+	attack_chip.visible = false
 	status_label.text = ""
 	world = World.new(levels[cur], {}, 0)
 	view.world = world
@@ -710,6 +754,7 @@ func _select_level(idx: int) -> void:
 	out_panel.visible = false
 	attack_choice = -1
 	_rebuild_attack_menu()
+	attack_chip.visible = false
 	status_label.text = ""
 	world = World.new(lv, {}, 0)
 	view.world = world
@@ -776,13 +821,14 @@ func _on_run() -> void:
 	if run_replay:
 		attack = list[attack_choice]  # même numéro = exactement la même attaque
 		number = attack_choice + 1
-		_set_status(_replay_msg(number), REPLAY_COLOR)
+		_set_status("", Color.WHITE)
 	else:
 		attack = _new_attack_id()
 		list.append(attack)
 		number = list.size()
 		_rebuild_attack_menu()
 		_set_status("", Color.WHITE)
+	_show_chip(number, run_replay)
 	world = World.new(lv, compiled, attack)
 	view.world = world
 	view.alpha = 1.0
