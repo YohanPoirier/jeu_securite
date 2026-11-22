@@ -68,7 +68,7 @@ void fragment() {
 		float cone = (1.0 - smoothstep(hw * 0.65, hw, across))
 			* smoothstep(-cell * 0.03, cell * 0.04, along)
 			* (1.0 - smoothstep(len * 0.80, len, along));
-		float halo = 1.0 - smoothstep(cell * 0.16, cell * 0.46, length(p - body[i]));
+		float halo = 1.0 - smoothstep(cell * 0.10, cell * 0.30, length(p - body[i]));
 		light = max(light, max(cone * 0.92, halo * 0.75));
 	}
 	for (int j = 0; j < 32; j++) {
@@ -146,6 +146,14 @@ func _slots() -> Dictionary:
 	var out: Dictionary = {}
 	for key in by_cell:
 		var ids: Array = by_cell[key]
+		# le vigile se range du côté éclairé (devant lui) : les intrus restent derrière, dans l'ombre
+		var guards: Array = ids.filter(func(k): return k.begins_with("r"))
+		var others: Array = ids.filter(func(k): return not k.begins_with("r"))
+		var f := 1
+		for rb in world.robots:
+			if "r" + str(rb.id) == guards[0] if guards.size() > 0 else false:
+				f = rb.facing
+		ids = others + guards if f >= 0 else guards + others
 		var n := ids.size()
 		for idx in n:
 			var off := Vector2.ZERO
@@ -550,7 +558,7 @@ func _update_night(lay: Dictionary, lamps: Array, slots: Dictionary) -> void:
 				continue
 			var c: Vector2 = _robot_pos(lay, rb, slots)
 			var f := float(rb.facing)
-			pos.append(c + Vector2(f * cell * 0.42, cell * 0.08))
+			pos.append(c + Vector2(f * cell * 0.42 * _slot(slots, "r" + str(rb.id)).sc, cell * 0.08))
 			dirs.append(Vector2(f, 0.0))
 			bodies.append(c)
 	var n := pos.size()
