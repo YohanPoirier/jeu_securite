@@ -46,7 +46,8 @@ var rng := RandomNumberGenerator.new()
 var taken: Dictionary = {}  # étagères déjà vidées : Vector2i(colonne, ±3) -> true
 var gates: Array = [{"state": "ferme"}, {"state": "ferme"}]  # porte gauche, porte droite (ferme | force | entrouverte | ouverte)
 var _reserved: Dictionary = {}
-const START_OUT := 4  # les voleurs partent à cette distance en dehors de l'écran
+const START_OUT := 4
+const STEAL_TICKS := 3  # durée pour prendre l'objet  # les voleurs partent à cette distance en dehors de l'écran
 
 
 ## codes : {id du robot -> code compilé}. Un robot sans code reste immobile ; un code `null`
@@ -74,7 +75,9 @@ func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 			"spawn": spawn, "side": side, "dir": side, "periode": periode, "t0": 0, "forcer": forcer,
 			"x": x0, "ry": 0, "px": x0, "py": 0, "pos": x0, "prev": x0,
 			"state": "attente", "phase": "arrivee", "path": [], "loot": false, "target": Vector2i.ZERO,
-			"force_left": 0, "face": side, "escaped": false,
+			"face": side, "escaped": false,
+			"until": 0, "wf": Vector2i(x0, 0), "wt": Vector2i(x0, 0), "ws": 0,
+			"pwf": Vector2i(x0, 0), "pwt": Vector2i(x0, 0), "pws": 0,
 		})
 	var specs: Array = level.get("robots", [{"id": "robot", "nom": "Robot", "depart": 0}])
 	for spec in specs:
@@ -132,7 +135,7 @@ func call_api(name: String, args: Array, rb: Dictionary):
 
 ## Les salles (identiques à l'affichage) : colonne de départ (case du couloir) et largeur.
 func rooms() -> Array:
-	var n := maxi(1, (length + 1) / 3)
+	var n := clampi(int(level.get("salles", (length + 1) / 3)), 1, maxi(1, (length + 1) / 3))
 	var free := length - (n - 1)
 	var base := free / n
 	var extra := free % n
@@ -236,45 +239,72 @@ func _sees_thief(rb: Dictionary) -> bool:
 	return false
 
 
-func _move_to(it: Dictionary, c: Vector2i) -> void:
-	if c.x != it.x:
-		it.face = 1 if c.x > it.x else -1
-	it.x = c.x
-	it.ry = c.y
-	it.pos = it.x
+## Début d'une activité du voleur : une marche vers la case `to` (durée = periode ticks, animée en
+## continu par l'affichage) ou une pause sur place (to = case actuelle, durée `duration`).
+func _start(it: Dictionary, to: Vector2i, duration: int) -> void:
+	it.pwf = it.wf
+	it.pwt = it.wt
+	it.pws = it.ws
+	it.wf = Vector2i(it.x, it.ry)
+	it.wt = to
+	it.ws = tick_n
+	it.until = tick_n + duration
+	if to.x != it.x:
+		it.face = 1 if to.x > it.x else -1
 
 
-func _step_thief(it: Dictionary) -> void:
+func _walk(it: Dictionary, to: Vector2i) -> void:
+	_start(it, to, it.periode)
+
+
+func _pause(it: Dictionary, duration: int) -> void:
+	_start(it, Vector2i(it.x, it.ry), duration)
+
+
+## Fin de l'activité en cours : arrivée sur la case visée, puis décision de la suite.
+func _finish(it: Dictionary) -> void:
+	var arrived: bool = it.wt != Vector2i(it.x, it.ry)
+	if arrived:
+		it.x = it.wt.x
+		it.ry = it.wt.y
+		it.pos = it.x
 	match it.phase:
 		"arrivee":
-			_move_to(it, Vector2i(it.x + it.side, 0))
 			if (it.side == 1 and it.x == -1) or (it.side == -1 and it.x == length):
 				it.phase = "force"
-				it.force_left = it.forcer
 				gates[_gate_index(it)].state = "force"
+				_pause(it, it.forcer)
+			else:
+				_walk(it, Vector2i(it.x + it.side, 0))
+		"force":
+			it.phase = "entree"
+			_walk(it, Vector2i(it.x + it.side, 0))
 		"entree":
-			_move_to(it, Vector2i(it.x + it.side, 0))
 			gates[_gate_index(it)].state = "entrouverte"  # la porte se referme, mais pas tout à fait
 			var item := _nearest_item(it.x)
 			it.target = item
 			_reserved[item] = true
 			it.path = _path_to(it.x, item)
 			it.phase = "va"
+			_walk(it, it.path.pop_front())
 		"va":
 			if it.path.is_empty():
-				taken[it.target] = true
-				it.loot = true
-				it.path = _path_out(it.x, it.ry, it.side)
-				it.phase = "fuite"
+				it.phase = "vol"
+				_pause(it, STEAL_TICKS)
 			else:
-				_move_to(it, it.path.pop_front())
+				_walk(it, it.path.pop_front())
+		"vol":
+			taken[it.target] = true
+			it.loot = true
+			it.path = _path_out(it.x, it.ry, it.side)
+			it.phase = "fuite"
+			_walk(it, it.path.pop_front())
 		"fuite":
-			if it.path.is_empty():
-				return
-			_move_to(it, it.path.pop_front())
 			if it.x == -1 or it.x == length:
 				gates[0 if it.x == -1 else 1].state = "ouverte"
 				it.escaped = true  # jugé après les coups de matraque du même tick
+			else:
+				_walk(it, it.path.pop_front())
 
 
 func tick() -> void:
@@ -301,13 +331,11 @@ func tick() -> void:
 		if it.state == "attente" and tick_n >= it.spawn:
 			it.state = "actif"
 			it.t0 = tick_n
-		elif it.state == "actif":
-			if it.phase == "force":
-				it.force_left -= 1
-				if it.force_left <= 0:
-					it.phase = "entree"
-			elif (tick_n - it.t0) % it.periode == 0:
-				_step_thief(it)
+			it.ws = tick_n
+			it.pws = tick_n
+			_walk(it, Vector2i(it.x + it.side, 0))
+		elif it.state == "actif" and tick_n >= it.until:
+			_finish(it)
 	# les coups de matraque : sur les cases surveillées au DÉBUT du tick (le voleur qui vient de bouger est touché quand même)
 	for rb in robots:
 		if rb.hs or not rb.stun:

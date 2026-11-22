@@ -14,7 +14,7 @@
    10
   ],
   "ecart": 8,
-  "periode": 9
+  "periode": 6
  },
  "syntaxe": [
   "boucle_while",
@@ -44,5 +44,6 @@
  ],
  "solutions": {
   "garde": "n = longueur() - 1\nwhile True:\n    i = 0\n    while i < n:\n        if vu():\n            assommer()\n        avancer()\n        i = i + 1\n    i = 0\n    while i < n:\n        if vu():\n            assommer()\n        reculer()\n        i += 1\n"
- }
+ },
+ "salles": 2
 }

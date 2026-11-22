@@ -130,6 +130,25 @@ func _smooth(prev: int, pos: int) -> float:
 	return lerpf(float(prev), float(pos), u)
 
 
+## Temps affiché, en ticks (continu) : l'état du tick courant est atteint à alpha = 1.
+func _t_now() -> float:
+	return float(world.tick_n - 1) + alpha
+
+
+## Position affichée (en cases) d'un voleur : il marche en continu vers sa prochaine case pendant
+## toute la durée de son pas, au lieu de sauter d'une case à l'autre.
+func _thief_visual(it: Dictionary) -> Vector2:
+	if it.state != "actif":
+		return Vector2(it.x, it.ry)
+	var t := _t_now()
+	var per := float(it.periode)
+	if t >= float(it.ws):
+		var k := clampf((t - float(it.ws)) / per, 0.0, 1.0) if it.wt != it.wf else 0.0
+		return Vector2(it.wf).lerp(Vector2(it.wt), k)
+	var k2 := clampf((t - float(it.pws)) / per, 0.0, 1.0) if it.pwt != it.pwf else 1.0
+	return Vector2(it.pwf).lerp(Vector2(it.pwt), k2)
+
+
 func _smooth_t() -> float:
 	var u := clampf(alpha / MOVE_FRACTION, 0.0, 1.0)
 	return u * u * (3.0 - 2.0 * u)
@@ -244,16 +263,9 @@ func _inside(lay: Dictionary, c: int, r: int) -> bool:
 
 ## Salles : de part et d'autre du couloir, séparées par un mur d'une colonne.
 func _rooms(l: int) -> Array:
-	var n := maxi(1, (l + 1) / 3)
-	var free := l - (n - 1)
-	var base := free / n
-	var extra := free % n
 	var out: Array = []
-	var c := MARGIN
-	for i in n:
-		var w := base + (1 if i < extra else 0)
-		out.append({"c0": c, "w": w})
-		c += w + 1
+	for r in world.rooms():
+		out.append({"c0": MARGIN + r.c0, "w": r.w})
 	return out
 
 
@@ -608,14 +620,11 @@ func _draw_robot(lay: Dictionary, rb: Dictionary, hovered: bool, slot := {"off":
 func _draw_thief(lay: Dictionary, it: Dictionary, slot := {"off": Vector2.ZERO, "sc": 1.0}) -> void:
 	var u: float = lay.cell * 1.12 * slot.sc
 	var cell: float = lay.cell
-	var px: float = float(it.x)
-	var py: float = float(it.ry)
-	if it.state == "actif":
-		px = lerpf(float(it.px), float(it.x), _smooth_t())
-		py = lerpf(float(it.py), float(it.ry), _smooth_t())
-	var c: Vector2 = Vector2(lay.x0 + (lay.k + px + 0.5) * cell, lay.y0 + (RAIL_ROW + py + 0.5) * cell) + slot.off * cell
+	var vp := _thief_visual(it)
+	var c: Vector2 = Vector2(lay.x0 + (lay.k + vp.x + 0.5) * cell, lay.y0 + (RAIL_ROW + vp.y + 0.5) * cell) + slot.off * cell
 	var f: float = float(it.face)
-	var b := _bob(it.px, it.x, u) if it.state == "actif" else 0.0
+	var moving: bool = it.state == "actif" and it.wt != Vector2i(it.x, it.ry) or (it.state == "actif" and it.pwt != it.pwf and _t_now() < float(it.ws))
+	var b := -absf(sin(_t_now() * PI * 0.7)) * u * 0.04 if moving else 0.0
 	var down: bool = it.state == "arrete"
 	draw_set_transform(c + Vector2(0, u * 0.34), 0.0, Vector2(1.0, 0.3))
 	draw_circle(Vector2.ZERO, u * 0.26, Color(0, 0, 0, 0.35))

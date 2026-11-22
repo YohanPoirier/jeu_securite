@@ -10,7 +10,7 @@
    3,
    12
   ],
-  "periode": 10
+  "periode": 6
  },
  "syntaxe": [
   "boucle_while",
@@ -35,5 +35,6 @@
  ],
  "solutions": {
   "garde": "while True:\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    reculer()\n    if vu():\n        assommer()\n    reculer()\n    if vu():\n        assommer()\n    reculer()\n    if vu():\n        assommer()\n    reculer()\n    if vu():\n        assommer()\n    reculer()\n"
- }
+ },
+ "salles": 1
 }
