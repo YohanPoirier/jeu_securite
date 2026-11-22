@@ -477,14 +477,15 @@ func _draw_gate(rc: Rect2, left_side: bool, font: Font) -> void:
 	# tapis d'accueil, sur l'herbe, devant la porte ; le texte se lit en arrivant de l'extérieur
 	var w := rc.size.x * 0.20
 	var cell := rc.size.x
-	var depth := cell * 0.62
-	var length := cell * 1.05
-	var mx := cx - w / 2.0 - depth if left_side else cx + w / 2.0
+	var depth := cell * 0.42
+	var length := cell * 0.78
+	var gap := cell * 0.16  # le tapis ne touche pas la porte
+	var mx := cx - w / 2.0 - gap - depth if left_side else cx + w / 2.0 + gap
 	var mat := Rect2(mx, rc.get_center().y - length / 2.0, depth, length)
-	draw_rect(mat, Color(0.55, 0.20, 0.18))
-	draw_rect(mat.grow(-3.0), Color(0.40, 0.14, 0.14), false, 1.5)
+	_rr(mat, Color(0.50, 0.22, 0.18), 3)
+	_rr(mat.grow(-2.5), Color(0.62, 0.30, 0.22), 2)
 	draw_set_transform(mat.get_center(), PI / 2.0 if left_side else -PI / 2.0, Vector2.ONE)
-	draw_string(font, Vector2(-length / 2.0, 3.5), "WELCOME", HORIZONTAL_ALIGNMENT_CENTER, length, 8, Color(0.95, 0.85, 0.65))
+	draw_string(font, Vector2(-length / 2.0, 2.8), "WELCOME", HORIZONTAL_ALIGNMENT_CENTER, length, 7, Color(0.98, 0.92, 0.75))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# plaque
 	var slab := Rect2(cx - w / 2.0, rc.position.y, w, rc.size.y)
@@ -492,7 +493,7 @@ func _draw_gate(rc: Rect2, left_side: bool, font: Font) -> void:
 	draw_rect(Rect2(slab.position, Vector2(slab.size.x * 0.4, slab.size.y)), C_DOOR.lightened(0.25))
 	draw_rect(slab, C_DOOR.darkened(0.55), false, 2.0)
 	# poignées de chaque côté, vers le bord de la porte (pas au milieu)
-	var hy := rc.position.y + rc.size.y * 0.72
+	var hy := rc.position.y + rc.size.y * (0.72 if left_side else 0.28) - 4.0  # la poignée change de bout selon l'orientation de la porte
 	draw_rect(Rect2(slab.position.x - 3.0, hy, 3.0, 8.0), Color(0.30, 0.22, 0.10))
 	draw_rect(Rect2(slab.end.x, hy, 3.0, 8.0), Color(0.30, 0.22, 0.10))
 
