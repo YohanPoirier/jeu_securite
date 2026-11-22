@@ -103,6 +103,9 @@ func _init() -> void:
 	main._on_run()
 	print("éditeur ouvert après erreur : ", main.editor_panel.visible)
 	print("console : ", main.console.get_parsed_text().strip_edges().split("\n")[-1])
+	if not main.running or not main.world.robots[0].hs:
+		print("ÉCHEC : une erreur de syntaxe doit rendre le robot HS sans arrêter le jeu")
+		fails += 1
 	if not main.editor_panel.visible or not main.out_panel.visible:
 		print("ÉCHEC : éditeur et sorties devraient s'ouvrir sur une erreur")
 		fails += 1

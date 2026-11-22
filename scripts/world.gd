@@ -30,13 +30,15 @@ var length := 6
 var robots: Array = []
 var intruders: Array = []
 var tick_n := 0
-var status := "en_cours"  # en_cours | victoire | defaite | erreur
+var status := "en_cours"  # en_cours | victoire | defaite
+var events: Array = []  # robots tombés en panne (HS) pendant un tick : {id, nom, line, msg}
 var message := ""
 var seed_used := 0
 var duree_max := 150
 
 
-## codes : {id du robot -> code compilé}. Un robot sans code reste immobile.
+## codes : {id du robot -> code compilé}. Un robot sans code reste immobile ; un code `null`
+## (programme qui ne compile pas) met le robot hors service (HS) dès le départ.
 func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 	level = p_level
 	seed_used = p_seed
@@ -64,8 +66,9 @@ func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 	var specs: Array = level.get("robots", [{"id": "robot", "nom": "Robot", "depart": 0}])
 	for spec in specs:
 		var start := clampi(int(spec.get("depart", 0)), 0, length - 1)
-		var rb := {"id": spec.id, "nom": spec.get("nom", spec.id), "pos": start, "prev": start, "vm": null}
-		var vm := VM.new(codes.get(spec.id, []), self, level.get("builtins", []))
+		var code = codes.get(spec.id, [])
+		var rb := {"id": spec.id, "nom": spec.get("nom", spec.id), "pos": start, "prev": start, "vm": null, "hs": code == null}
+		var vm := VM.new(code if code != null else [], self, level.get("builtins", []))
 		vm.robot_ref = rb
 		rb.vm = vm
 		robots.append(rb)
@@ -108,6 +111,8 @@ func call_api(name: String, args: Array, rb: Dictionary):
 
 func _caught(it: Dictionary) -> bool:
 	for rb in robots:
+		if rb.hs:
+			continue  # un robot HS n'arrête personne
 		if rb.pos == it.pos or (rb.prev == it.pos and rb.pos == it.prev):
 			return true
 	return false
@@ -120,12 +125,14 @@ func tick() -> void:
 	for rb in robots:
 		rb.prev = rb.pos
 	for rb in robots:
+		if rb.hs:
+			continue
 		var vm = rb.vm
 		vm.step()
 		if not vm.error.is_empty():
-			status = "erreur"
-			message = "%s — ligne %d : %s" % [rb.nom, vm.error.line, vm.error.msg]
-			return
+			# une erreur ne stoppe pas la partie : ce robot-là est simplement hors service
+			rb.hs = true
+			events.append({"id": rb.id, "nom": rb.nom, "line": vm.error.line, "msg": vm.error.msg})
 	var all_caught := true
 	for it in intruders:
 		it.prev = it.pos

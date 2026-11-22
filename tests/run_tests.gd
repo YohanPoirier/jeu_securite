@@ -18,6 +18,7 @@ func _init() -> void:
 	test_errors()
 	test_gating()
 	test_levels()
+	test_hs()
 	print("")
 	print("=== %d tests réussis, %d échecs ===" % [passed, fails])
 	quit(1 if fails > 0 else 0)
@@ -216,3 +217,26 @@ func test_levels() -> void:
 				idle_wins += 1
 		ok(idle_wins < 60, "niveau/%s/ne rien faire ne suffit pas" % id, "(%d/60 victoires sans rien faire)" % idle_wins)
 		print("niveau %s : solution %d/60, robots inactifs %d/60" % [id, wins, idle_wins])
+
+
+## Une erreur ne stoppe pas le jeu : le robot est hors service (HS) et n'arrête plus personne.
+func test_hs() -> void:
+	var lv := load_level("niveau_03")
+	# programme qui ne compile pas : code null = HS dès le départ, la partie se joue quand même
+	var w := play(lv, {"garde": null}, 5)
+	ok(w.robots[0].hs and w.status == "defaite", "hs/code null : robot HS, la partie va à son terme", w.status)
+	var wins := 0
+	for s in range(1, 41):
+		if play(lv, {"garde": null}, s).status == "victoire":
+			wins += 1
+	ok(wins == 0, "hs/un robot HS n'arrête aucun intrus", "(%d victoires)" % wins)
+	# erreur d'exécution : le robot tombe en panne, la partie continue
+	var res := Interp.compile("avancer()\nattendre(-1)\n", lv.syntaxe, lv.api, lv.builtins)
+	ok(res.ok, "hs/programme à erreur d'exécution compile")
+	var w2 := World.new(lv, {"garde": res.code}, 5)
+	var guard := 0
+	while w2.status == "en_cours" and guard < 1000:
+		w2.tick()
+		guard += 1
+	ok(w2.robots[0].hs and w2.events.size() == 1 and w2.status != "en_cours" and w2.tick_n > 2,
+		"hs/erreur d'exécution : robot HS, un événement, la partie continue", "%s tick %d" % [w2.status, w2.tick_n])

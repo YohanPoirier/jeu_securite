@@ -142,14 +142,26 @@ func _draw() -> void:
 	for i in world.robots.size():
 		var rb: Dictionary = world.robots[i]
 		var rr := _robot_rect(lay, rb)
-		draw_rect(rr, C_ROBOT)
-		draw_rect(rr, Color.WHITE if i == hover else Color(1, 1, 1, 0.6), false, 3.0 if i == hover else 2.0)
+		var broken: bool = rb.hs
+		draw_rect(rr, Color(0.28, 0.30, 0.34) if broken else C_ROBOT)
+		var edge := Color(0.9, 0.3, 0.3) if broken else (Color.WHITE if i == hover else Color(1, 1, 1, 0.6))
+		draw_rect(rr, edge, false, 3.0 if i == hover else 2.0)
 		var c2 := rr.get_center()
-		draw_circle(c2 + Vector2(-rr.size.x * 0.18, -rr.size.y * 0.1), rr.size.x * 0.09, Color.WHITE)
-		draw_circle(c2 + Vector2(rr.size.x * 0.18, -rr.size.y * 0.1), rr.size.x * 0.09, Color.WHITE)
-		draw_line(c2 + Vector2(0, -rr.size.y * 0.5), c2 + Vector2(0, -rr.size.y * 0.8), Color.WHITE, 2.0)
-		draw_string(font, Vector2(rr.position.x - 10.0, rr.end.y + 16.0), String(rb.nom),
-			HORIZONTAL_ALIGNMENT_CENTER, rr.size.x + 20.0, 13, Color(1, 1, 1, 0.9))
+		var ex := rr.size.x * 0.18
+		var ey := -rr.size.y * 0.1
+		var er := rr.size.x * 0.09
+		if broken:
+			for sx in [-1.0, 1.0]:
+				var ec: Vector2 = c2 + Vector2(sx * ex, ey)
+				draw_line(ec + Vector2(-er, -er), ec + Vector2(er, er), Color(0.9, 0.3, 0.3), 2.5)
+				draw_line(ec + Vector2(-er, er), ec + Vector2(er, -er), Color(0.9, 0.3, 0.3), 2.5)
+			draw_line(c2 + Vector2(0, -rr.size.y * 0.5), c2 + Vector2(rr.size.x * 0.12, -rr.size.y * 0.68), Color(0.7, 0.7, 0.7), 2.0)
+		else:
+			draw_circle(c2 + Vector2(-ex, ey), er, Color.WHITE)
+			draw_circle(c2 + Vector2(ex, ey), er, Color.WHITE)
+			draw_line(c2 + Vector2(0, -rr.size.y * 0.5), c2 + Vector2(0, -rr.size.y * 0.8), Color.WHITE, 2.0)
+		draw_string(font, Vector2(rr.position.x - 10.0, rr.end.y + 16.0), String(rb.nom) + (" (HS)" if broken else ""),
+			HORIZONTAL_ALIGNMENT_CENTER, rr.size.x + 20.0, 13, Color(1.0, 0.55, 0.55) if broken else Color(1, 1, 1, 0.9))
 		if i == hover:
 			draw_string(font, Vector2(rr.position.x - 40.0, rr.position.y - 20.0), "clic : programmer",
 				HORIZONTAL_ALIGNMENT_CENTER, rr.size.x + 80.0, 13, Color(1, 1, 1, 0.9))

@@ -17,6 +17,7 @@ const BOTTOM_H := 102
 const SPEEDS := [["Lent (×½)", 3], ["Normal (×1)", 6], ["Rapide (×2)", 12], ["Très rapide (×4)", 24]]
 const GREEN := Color(0.16, 0.50, 0.28)
 const ATTACK_TIP := "Attaque à lancer : une nouvelle, ou une ancienne à rejouer pour déboguer"
+const ERROR_LINE := Color(0.9, 0.25, 0.25, 0.30)
 const REPLAY_COLOR := Color(1.0, 0.82, 0.45)
 const EDITOR_W := 520
 const OUT_W := 360
@@ -829,15 +830,18 @@ func _on_run() -> void:
 	console.clear()
 	_reset_out_count()
 	var compiled := {}
+	var broken: Array = []
 	for id in editors:
 		var res := Interp.compile(editors[id].text, lv.get("syntaxe", []), lv.get("api", []), lv.get("builtins", []))
 		if not res.ok:
+			# le jeu ne s'arrête pas : ce robot est simplement hors service (HS)
 			_log("[color=tomato]%s — ligne %d : %s[/color]" % [_robot_name(id), res.line, _esc(res.msg)], true)
-			_set_status("Erreur dans le programme de %s" % _robot_name(id), Color.TOMATO)
 			_open_editor(id)
-			_mark_line(id, res.line)
-			return
-		compiled[id] = res.code
+			_mark_line(id, res.line, ERROR_LINE)
+			broken.append(_robot_name(id))
+			compiled[id] = null
+		else:
+			compiled[id] = res.code
 	var list := _level_attacks()
 	var attack: int
 	var number: int
@@ -852,6 +856,8 @@ func _on_run() -> void:
 		number = list.size()
 		_rebuild_attack_menu()
 		_set_status("", Color.WHITE)
+	if not broken.is_empty():
+		_set_status("%s : hors service (erreur dans le programme)" % ", ".join(broken), Color.ORANGE)
 	world = World.new(lv, compiled, attack)
 	view.world = world
 	view.alpha = 1.0
@@ -896,7 +902,8 @@ func _process(delta: float) -> void:
 			_finish()
 			break
 		for rb in world.robots:
-			_mark_line(rb.id, rb.vm.last_line)
+			if not rb.hs:
+				_mark_line(rb.id, rb.vm.last_line)
 	view.alpha = clampf(timer / interval, 0.0, 1.0) if running else 1.0
 	view.queue_redraw()
 
@@ -907,6 +914,13 @@ func _esc(t: String) -> String:
 
 
 func _drain_prints() -> void:
+	for e in world.events:
+		_log("[color=tomato]%s — ligne %d : %s[/color]" % [e.nom, e.line, _esc(str(e.msg))], true)
+		_set_status("%s est tombé en panne (hors service)" % e.nom, Color.ORANGE)
+		_mark_line(e.id, e.line, ERROR_LINE)
+		if open_robot == "":
+			_open_editor(e.id)
+	world.events.clear()
 	for rb in world.robots:
 		var vm = rb.vm
 		for line in vm.printed:
@@ -935,13 +949,6 @@ func _finish() -> void:
 				_save_progress()
 		"defaite":
 			_set_status("Échec : %s%s" % [world.message, note], Color.ORANGE)
-		"erreur":
-			_set_status("Erreur dans un programme (voir les sorties)", Color.TOMATO)
-			_log("[color=tomato]%s[/color]" % _esc(world.message), true)
-			for rb in world.robots:
-				if not rb.vm.error.is_empty():
-					_open_editor(rb.id)
-					_mark_line(rb.id, rb.vm.error.line)
 
 
 ## Ajoute une ligne aux sorties. Une erreur ouvre la fenêtre ; sinon, si elle est fermée,
@@ -964,7 +971,7 @@ func _clear_marks() -> void:
 	marks.clear()
 
 
-func _mark_line(id: String, line_1based: int) -> void:
+func _mark_line(id: String, line_1based: int, color := Color(0.3, 0.5, 0.9, 0.25)) -> void:
 	var e: CodeEdit = editors.get(id)
 	if e == null:
 		return
@@ -972,5 +979,5 @@ func _mark_line(id: String, line_1based: int) -> void:
 		e.set_line_background_color(marks[id], Color(0, 0, 0, 0))
 	var i := line_1based - 1
 	if i >= 0 and i < e.get_line_count():
-		e.set_line_background_color(i, Color(0.3, 0.5, 0.9, 0.25))
+		e.set_line_background_color(i, color)
 		marks[id] = i
