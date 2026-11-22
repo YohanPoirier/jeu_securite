@@ -670,6 +670,13 @@ func _show_modal(kind: String) -> void:
 			rt.custom_minimum_size = Vector2(0, 60)
 			rt.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			modal_box.add_child(rt)
+			if result_info.title == "Échec":  # la cause de la défaite, pas pour une victoire
+				var body := _label(String(result_info.text))
+				body.add_theme_font_size_override("font_size", 17)
+				body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				body.custom_minimum_size = Vector2(MODAL_W - 20, 0)
+				modal_box.add_child(body)
 			if result_info.next:
 				modal_box.add_child(_modal_button("Niveau suivant", func(): _select_level(cur + 1)))
 			modal_box.add_child(_modal_button("Fermer", _close_modal))
