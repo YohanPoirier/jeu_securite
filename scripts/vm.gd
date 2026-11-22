@@ -2,9 +2,10 @@ extends RefCounted
 ## Machine virtuelle d'UN robot. step() est appelée une fois par tick.
 ##  - Les capteurs (coût 0) s'exécutent instantanément et le programme continue dans le même tick.
 ##  - Une action de coût c occupe le robot pendant c ticks.
-##  - Si le programme exécute trop d'instructions sans agir (boucle sans action), ce n'est pas une
-##    erreur : le robot attend simplement jusqu'au tick suivant, et la partie finit par une victoire
-##    ou une défaite. Un avis est ajouté une seule fois dans `notices`.
+##  - La réflexion est gratuite tant qu'elle reste sous le seuil `budget` (instructions par tick).
+##    Au-delà, penser compte comme une action : le robot perd son tour (`thinking` vaut vrai pendant
+##    ce tick, l'interface affiche un petit cerveau) puis reprend où il en était. Ce n'est jamais une
+##    erreur, même pour une boucle infinie sans action (`while True: pass`).
 
 const Comp = preload("res://scripts/compiler.gd")
 const PyOps = preload("res://scripts/pyops.gd")
@@ -19,9 +20,8 @@ var error: Dictionary = {}
 var host = null
 var builtins: Array = []
 var printed: Array = []
-var notices: Array = []  # avis non bloquants (affichés dans la console)
-var spin_notified := false
-var budget := 2000
+var thinking := false  # vrai si, ce tick, la réflexion a pris le pas sur une action
+var budget := 200  # seuil de réflexion gratuite (instructions par tick), fixé par le niveau
 var last_line := 0
 var robot_ref = null  # le robot (dictionnaire du monde) qui exécute cette VM
 
@@ -39,6 +39,7 @@ func _fail(msg: String) -> void:
 func step() -> void:
 	if done or not error.is_empty():
 		return
+	thinking = false
 	if wait > 0:
 		wait -= 1
 		return
@@ -136,10 +137,8 @@ func step() -> void:
 			if res.cost > 0:
 				wait = res.cost - 1
 				return
-	# budget épuisé sans action : le robot attend, on reprendra ici au tick suivant
-	if not spin_notified:
-		spin_notified = true
-		notices.append("le programme tourne sans que le robot n'agisse : le robot attend.")
+	# seuil de réflexion dépassé sans action : le robot perd ce tour, on reprendra ici au tick suivant
+	thinking = true
 
 
 func _make_range(args: Array):

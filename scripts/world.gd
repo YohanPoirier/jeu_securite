@@ -68,6 +68,7 @@ func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 		var rb := {"id": spec.id, "nom": spec.get("nom", spec.id), "pos": start, "prev": start, "vm": null, "hs": code == null}
 		var vm := VM.new(code if code != null else [], self, level.get("builtins", []))
 		vm.robot_ref = rb
+		vm.budget = int(level.get("reflexion", 200))
 		rb.vm = vm
 		robots.append(rb)
 

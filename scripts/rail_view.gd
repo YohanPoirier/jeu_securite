@@ -160,11 +160,30 @@ func _draw() -> void:
 			draw_circle(c2 + Vector2(-ex, ey), er, Color.WHITE)
 			draw_circle(c2 + Vector2(ex, ey), er, Color.WHITE)
 			draw_line(c2 + Vector2(0, -rr.size.y * 0.5), c2 + Vector2(0, -rr.size.y * 0.8), Color.WHITE, 2.0)
+		if rb.vm.thinking and not broken:
+			draw_texture_rect(_brain(), Rect2(rr.end.x - 14.0, rr.position.y - 36.0, 40, 40), false)
 		draw_string(font, Vector2(rr.position.x - 10.0, rr.end.y + 16.0), String(rb.nom) + (" (HS)" if broken else ""),
 			HORIZONTAL_ALIGNMENT_CENTER, rr.size.x + 20.0, 13, Color(1.0, 0.55, 0.55) if broken else Color(1, 1, 1, 0.9))
 		if i == hover:
 			draw_string(font, Vector2(rr.position.x - 40.0, rr.position.y - 20.0), "clic : programmer",
 				HORIZONTAL_ALIGNMENT_CENTER, rr.size.x + 80.0, 13, Color(1, 1, 1, 0.9))
+
+
+var _brain_tex: Texture2D = null
+
+
+## Petit cerveau (dessiné en SVG) : affiché quand la réflexion prend le pas sur une action.
+func _brain() -> Texture2D:
+	if _brain_tex == null:
+		var svg := """<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24">
+<g fill="#f4a6c0" stroke="#7a2f4f" stroke-width="1.3">
+<circle cx="8" cy="9" r="5"/><circle cx="16" cy="9" r="5"/><circle cx="7.5" cy="15" r="4.6"/><circle cx="16.5" cy="15" r="4.6"/><circle cx="12" cy="13" r="5"/></g>
+<g fill="none" stroke="#7a2f4f" stroke-width="1.3" stroke-linecap="round">
+<path d="M12 5 V19"/><path d="M6 8 Q8 10 6 12"/><path d="M18 8 Q16 10 18 12"/><path d="M8.5 15 Q10 14 9.5 17"/><path d="M15.5 15 Q14 14 14.5 17"/></g></svg>"""
+		var img := Image.new()
+		img.load_svg_from_string(svg)
+		_brain_tex = ImageTexture.create_from_image(img)
+	return _brain_tex
 
 
 ## Étagères : unités de 3 cases de long, 1 case de large, alignées sur la grille.

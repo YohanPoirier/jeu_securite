@@ -19,6 +19,7 @@ func _init() -> void:
 	test_gating()
 	test_levels()
 	test_hs()
+	test_reflexion()
 	print("")
 	print("=== %d tests réussis, %d échecs ===" % [passed, fails])
 	quit(1 if fails > 0 else 0)
@@ -108,12 +109,12 @@ func test_errors() -> void:
 	expect_error("affectation_invalide", "3 = x\n", 1, "affecter")
 	expect_error("caractere", "x = 3 $ 4\n", 1, "Caractère")
 	expect_error("texte_non_termine", "print(\"abc)\n", 1, "Texte non terminé")
-	# boucle sans action : pas une erreur, le robot attend (un seul avis)
+	# boucle sans action : pas une erreur, le robot perd son tour (thinking), sans aucun message
 	var res := Interp.compile("while True:\n    pass\n", ALL_SYNTAX, [], ALL_BUILTINS)
 	var vm := VM.new(res.code, null, ALL_BUILTINS)
 	vm.step()
 	vm.step()
-	ok(vm.error.is_empty() and vm.notices.size() == 1, "boucle sans action = attente, pas une erreur")
+	ok(vm.error.is_empty() and vm.thinking, "boucle sans action = le robot perd son tour (cerveau), pas une erreur")
 
 
 # ---------- 3. déblocage progressif ----------
@@ -240,3 +241,42 @@ func test_hs() -> void:
 		guard += 1
 	ok(w2.robots[0].hs and w2.events.size() == 1 and w2.status != "en_cours" and w2.tick_n > 2,
 		"hs/erreur d'exécution : robot HS, un événement, la partie continue", "%s tick %d" % [w2.status, w2.tick_n])
+
+
+## La réflexion est gratuite si elle est légère ; trop longue, elle compte comme une action.
+func test_reflexion() -> void:
+	var lv1 := load_level("niveau_01")
+	var lv3 := load_level("niveau_03")
+	# une boucle infinie sans action ne bloque rien, dès le premier niveau (et avec variables ensuite)
+	for case in [[lv1, "while True:\n    pass\n"], [lv3, "i = 0\nwhile True:\n    i = i + 1\n"]]:
+		var res := Interp.compile(case[1], case[0].syntaxe, case[0].api, case[0].builtins)
+		ok(res.ok, "reflexion/compile : " + case[1].substr(0, 12), str(res))
+		if not res.ok:
+			continue
+		var w := World.new(case[0], {"garde": res.code}, 3)
+		var seen := false
+		var guard := 0
+		while w.status == "en_cours" and guard < 1000:
+			w.tick()
+			seen = seen or w.robots[0].vm.thinking
+			guard += 1
+		ok(w.status != "en_cours" and w.events.is_empty() and seen, "reflexion/boucle sans action ne bloque pas (cerveau affiché)", w.status)
+	# réflexion légère : jamais de cerveau
+	var sol := compile_all(lv1, lv1.solutions)
+	var w1 := World.new(lv1, sol, 3)
+	var never := true
+	var g := 0
+	while w1.status == "en_cours" and g < 1000:
+		w1.tick()
+		never = never and not w1.robots[0].vm.thinking
+		g += 1
+	ok(never, "reflexion/réflexion légère = gratuite, jamais de cerveau")
+	# réflexion lourde : le robot avance moins vite qu'un robot qui agit directement
+	var light := Interp.compile("while True:\n    avancer()\n", lv3.syntaxe, lv3.api, lv3.builtins)
+	var heavy := Interp.compile("while True:\n    i = 0\n    while i < 150:\n        i = i + 1\n    avancer()\n", lv3.syntaxe, lv3.api, lv3.builtins)
+	var wl := World.new(lv3, {"garde": light.code}, 3)
+	var wh := World.new(lv3, {"garde": heavy.code}, 3)
+	for t in 3:
+		wl.tick()
+		wh.tick()
+	ok(wh.robots[0].pos < wl.robots[0].pos, "reflexion/réflexion lourde = moins d'actions", "léger %d, lourd %d" % [wl.robots[0].pos, wh.robots[0].pos])

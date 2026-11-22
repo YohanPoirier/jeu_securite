@@ -727,6 +727,7 @@ func _help_text(tab: String) -> String:
 			t += "[b]Programmer un robot[/b]\nClique sur un robot : son éditeur s'ouvre à gauche. Chaque robot a son propre programme. ↺ remet le code de départ, ✕ ferme l'éditeur.\n\n"
 			t += "[b]Lancer[/b]\n▶ Lancer démarre l'attaque. La petite flèche ▲ permet de choisir une nouvelle attaque, ou de rejouer une ancienne (Attaque 1, 2, 3…) pour déboguer : un rejeu ne valide pas le niveau. ■ Arrêter interrompt la simulation.\n\n"
 			t += "[b]Vitesse[/b]\nLe bouton compteur règle la vitesse. La simulation est en pause tant qu'on n'a pas choisi.\n\n"
+			t += "[b]Réflexion[/b]\nSi le programme calcule trop longtemps avant d'agir, le robot perd son tour : un petit cerveau s'affiche au-dessus de lui.\n\n"
 			t += "[b]Sorties[/b]\nLa fenêtre de droite affiche les print et les erreurs, toujours avec le nom du robot concerné.\n\n"
 			t += "[b]Menu[/b]\nRecommencer le niveau, ouvrir cette aide, retourner au menu principal."
 		"python":
@@ -918,9 +919,6 @@ func _drain_prints() -> void:
 		for line in vm.printed:
 			_log("[color=#9fd0ff]%s ›[/color] %s" % [rb.nom, _esc(str(line))])
 		vm.printed.clear()
-		for n in vm.notices:
-			_log("[color=gray]%s : %s[/color]" % [rb.nom, _esc(str(n))])
-		vm.notices.clear()
 
 
 func _finish() -> void:

@@ -3,6 +3,7 @@
  "titre": "Premier garde",
  "enonce": "Le rail fait 6 cases (0 à 5). Un intrus apparaît au milieu, puis file vers l'une des deux portes, aux extrémités. Ton robot doit le toucher (même case, ou croisement) avant qu'il n'atteigne une porte. Le robot part de la case 0. Chaque action dure 1 tick. Écris une patrouille qui boucle indéfiniment.",
  "longueur": 6,
+ "reflexion": 200,
  "intrus": {
   "nombre": 1,
   "apparition": [
