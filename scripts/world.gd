@@ -44,7 +44,7 @@ var message := ""
 var seed_used := 0
 var rng := RandomNumberGenerator.new()
 var taken: Dictionary = {}  # étagères déjà vidées : Vector2i(colonne, ±3) -> true
-var gates: Array = [{"state": "ferme"}, {"state": "ferme"}]  # porte gauche, porte droite (ferme | force | entrouverte | ouverte)
+var gates: Array = [{"state": "ferme", "forced": false}, {"state": "ferme", "forced": false}]  # porte gauche, porte droite ; state : ferme | force ; forced : déjà déverrouillée
 var _reserved: Dictionary = {}
 const START_OUT := 4
 const STEAL_TICKS := 3  # durée pour prendre l'objet  # les voleurs partent à cette distance en dehors de l'écran
@@ -75,7 +75,7 @@ func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 			"spawn": spawn, "side": side, "dir": side, "periode": periode, "t0": 0, "forcer": forcer,
 			"x": x0, "ry": 0, "px": x0, "py": 0, "pos": x0, "prev": x0,
 			"state": "attente", "phase": "arrivee", "path": [], "loot": false, "target": Vector2i.ZERO,
-			"face": side, "escaped": false,
+			"face": side, "escaped": false, "exit_gate": 0,
 			"until": 0, "wf": Vector2i(x0, 0), "wt": Vector2i(x0, 0), "ws": 0,
 			"pwf": Vector2i(x0, 0), "pwt": Vector2i(x0, 0), "pws": 0,
 		})
@@ -219,6 +219,7 @@ func _path_out(x: int, ry: int, prefer: int) -> Array:  # prefer = côté d'entr
 	while cx != gate:
 		cx += 1 if gate > cx else -1
 		out.append(Vector2i(cx, 0))
+	out.append(Vector2i(gate - 1 if go_left else gate + 1, 0))  # puis dehors
 	return out
 
 
@@ -262,6 +263,7 @@ func _pause(it: Dictionary, duration: int) -> void:
 
 
 ## Fin de l'activité en cours : arrivée sur la case visée, puis décision de la suite.
+## Les portes : case « porte » en -1 et length ; juste devant (dehors) en -2 et length+1.
 func _finish(it: Dictionary) -> void:
 	var arrived: bool = it.wt != Vector2i(it.x, it.ry)
 	if arrived:
@@ -270,17 +272,21 @@ func _finish(it: Dictionary) -> void:
 		it.pos = it.x
 	match it.phase:
 		"arrivee":
-			if (it.side == 1 and it.x == -1) or (it.side == -1 and it.x == length):
-				it.phase = "force"
+			if (it.side == 1 and it.x == -2) or (it.side == -1 and it.x == length + 1):
+				it.phase = "force"  # il force la porte, depuis l'extérieur
 				gates[_gate_index(it)].state = "force"
 				_pause(it, it.forcer)
 			else:
 				_walk(it, Vector2i(it.x + it.side, 0))
 		"force":
+			gates[_gate_index(it)].state = "ferme"
+			gates[_gate_index(it)].forced = true
+			it.phase = "porte"
+			_walk(it, Vector2i(it.x + it.side, 0))  # sur la porte
+		"porte":
 			it.phase = "entree"
-			_walk(it, Vector2i(it.x + it.side, 0))
+			_walk(it, Vector2i(it.x + it.side, 0))  # dans le couloir
 		"entree":
-			gates[_gate_index(it)].state = "entrouverte"  # la porte se referme, mais pas tout à fait
 			var item := _nearest_item(it.x)
 			it.target = item
 			_reserved[item] = true
@@ -298,13 +304,32 @@ func _finish(it: Dictionary) -> void:
 			it.loot = true
 			it.path = _path_out(it.x, it.ry, it.side)
 			it.phase = "fuite"
+			_continue_out(it)
+		"force_sortie":
+			gates[it.exit_gate].state = "ferme"
+			gates[it.exit_gate].forced = true
+			it.phase = "fuite"
 			_walk(it, it.path.pop_front())
 		"fuite":
-			if it.x == -1 or it.x == length:
-				gates[0 if it.x == -1 else 1].state = "ouverte"
+			if it.x == -2 or it.x == length + 1:
 				it.escaped = true  # jugé après les coups de matraque du même tick
 			else:
-				_walk(it, it.path.pop_front())
+				_continue_out(it)
+
+
+## Suite de la fuite : si la prochaine case est une porte encore verrouillée, il la force d'abord ;
+## une porte déjà déverrouillée s'ouvre sans délai.
+func _continue_out(it: Dictionary) -> void:
+	var nxt: Vector2i = it.path[0]
+	if (nxt.x == -1 or nxt.x == length) and nxt.y == 0:
+		var g := 0 if nxt.x == -1 else 1
+		if not gates[g].forced:
+			it.exit_gate = g
+			it.phase = "force_sortie"
+			gates[g].state = "force"
+			_pause(it, it.forcer)
+			return
+	_walk(it, it.path.pop_front())
 
 
 func tick() -> void:

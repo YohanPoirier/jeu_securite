@@ -290,6 +290,16 @@ func _draw() -> void:
 
 
 ## Noms, « clic : programmer » et cerveau : par-dessus la nuit, pour rester lisibles.
+## Quatre petits coins autour d'une case.
+func _marker(rc: Rect2, col: Color) -> void:
+	var r := rc.grow(-3.0)
+	var l := rc.size.x * 0.22
+	for corner in [[r.position, Vector2(1, 0), Vector2(0, 1)], [Vector2(r.end.x, r.position.y), Vector2(-1, 0), Vector2(0, 1)],
+			[Vector2(r.position.x, r.end.y), Vector2(1, 0), Vector2(0, -1)], [r.end, Vector2(-1, 0), Vector2(0, -1)]]:
+		_hud.draw_line(corner[0], corner[0] + corner[1] * l, col, 2.0)
+		_hud.draw_line(corner[0], corner[0] + corner[2] * l, col, 2.0)
+
+
 func _draw_hud() -> void:
 	if world == null:
 		return
@@ -297,13 +307,14 @@ func _draw_hud() -> void:
 	var lay := _layout()
 	var cell: float = lay.cell
 	var slots := _slots()
-	# marqueur de case : la case que le voleur occupe réellement (celle que voient vu() et assommer())
+	# marqueurs de case discrets (coins) : voleurs en rouge, robots en bleu (+ la case devant, plus pâle)
 	for it in world.intruders:
 		if it.state == "actif":
-			var mrc := _cell_rect(lay, lay.k + it.x, RAIL_ROW + it.ry).grow(-2.0)
-			var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 280.0)
-			_hud.draw_rect(mrc, Color(1.0, 0.30, 0.25, 0.10 + 0.06 * pulse))
-			_hud.draw_rect(mrc, Color(1.0, 0.38, 0.30, 0.55 + 0.25 * pulse), false, 2.0)
+			_marker(_cell_rect(lay, lay.k + it.x, RAIL_ROW + it.ry), Color(1.0, 0.40, 0.32, 0.50))
+	for rb in world.robots:
+		if not rb.hs:
+			_marker(_cell_rect(lay, lay.k + rb.pos, RAIL_ROW), Color(0.45, 0.85, 1.0, 0.50))
+			_marker(_cell_rect(lay, lay.k + rb.pos + rb.facing, RAIL_ROW), Color(0.45, 0.85, 1.0, 0.22))
 	for i in world.robots.size():
 		var rb: Dictionary = world.robots[i]
 		var sl: Dictionary = _slot(slots, "r" + str(rb.id))
@@ -509,16 +520,27 @@ func _draw_gate(rc: Rect2, left_side: bool, font: Font, gate_i := 0) -> void:
 	var state := "ferme"
 	if world != null:
 		state = String(world.gates[gate_i].state)
-	var target := 0.0
-	match state:
-		"force", "ouverte":  # un voleur est sur la porte : grande ouverte
-			target = deg_to_rad(88.0)
-		"entrouverte":
-			target = deg_to_rad(26.0)
-	_gate_angle[gate_i] = move_toward(_gate_angle[gate_i], target, 0.09)
+	var forced: bool = world != null and world.gates[gate_i].forced
+	var gx: float = -1.0 if gate_i == 0 else float(world.length) if world != null else 0.0
+	var target := deg_to_rad(26.0) if forced else 0.0  # déverrouillée : se referme, mais reste entrouverte
+	var near := false
+	if world != null:
+		for it in world.intruders:
+			if it.state == "actif":
+				var vp := _thief_visual(it)
+				if absf(vp.x - gx) < 0.75 and absf(vp.y) < 0.5:
+					near = true  # un voleur est à la porte : elle s'ouvre en grand devant lui
+	var wobble := 0.0
+	if near:
+		target = deg_to_rad(88.0)
+	elif state == "force":
+		wobble = deg_to_rad(5.0) * sin(Time.get_ticks_msec() / 60.0) + deg_to_rad(5.0)  # elle résiste, secouée
+	var speed := 0.35 if target > _gate_angle[gate_i] else 0.06  # ouverture vive, fermeture lente
+	_gate_angle[gate_i] = move_toward(_gate_angle[gate_i], target, speed)
+	var shown: float = _gate_angle[gate_i] + wobble
 	var hinge_top := left_side
 	var hinge := Vector2(cx, rc.position.y if hinge_top else rc.end.y)
-	draw_set_transform(hinge, _gate_angle[gate_i], Vector2.ONE)
+	draw_set_transform(hinge, shown, Vector2.ONE)
 	var slab := Rect2(-w / 2.0, 0.0 if hinge_top else -rc.size.y, w, rc.size.y)
 	draw_rect(slab, C_DOOR)
 	draw_rect(Rect2(slab.position, Vector2(slab.size.x * 0.4, slab.size.y)), C_DOOR.lightened(0.25))
@@ -527,7 +549,7 @@ func _draw_gate(rc: Rect2, left_side: bool, font: Font, gate_i := 0) -> void:
 	draw_rect(Rect2(slab.position.x - 3.0, hy, 3.0, 8.0), Color(0.30, 0.22, 0.10))
 	draw_rect(Rect2(slab.end.x, hy, 3.0, 8.0), Color(0.30, 0.22, 0.10))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	if _gate_angle[gate_i] != target:
+	if _gate_angle[gate_i] != target or state == "force":
 		queue_redraw()  # on continue d'animer jusqu'à la position voulue
 
 
