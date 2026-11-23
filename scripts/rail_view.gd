@@ -297,6 +297,13 @@ func _draw_hud() -> void:
 	var lay := _layout()
 	var cell: float = lay.cell
 	var slots := _slots()
+	# marqueur de case : la case que le voleur occupe réellement (celle que voient vu() et assommer())
+	for it in world.intruders:
+		if it.state == "actif":
+			var mrc := _cell_rect(lay, lay.k + it.x, RAIL_ROW + it.ry).grow(-2.0)
+			var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 280.0)
+			_hud.draw_rect(mrc, Color(1.0, 0.30, 0.25, 0.10 + 0.06 * pulse))
+			_hud.draw_rect(mrc, Color(1.0, 0.38, 0.30, 0.55 + 0.25 * pulse), false, 2.0)
 	for i in world.robots.size():
 		var rb: Dictionary = world.robots[i]
 		var sl: Dictionary = _slot(slots, "r" + str(rb.id))
