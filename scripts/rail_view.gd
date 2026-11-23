@@ -291,11 +291,16 @@ func _draw() -> void:
 
 ## Noms, « clic : programmer » et cerveau : par-dessus la nuit, pour rester lisibles.
 ## Quatre petits coins autour d'une case.
-func _marker(rc: Rect2, col: Color) -> void:
+## `only` : les coins à tracer (0 haut-gauche, 1 haut-droit, 2 bas-gauche, 3 bas-droit).
+func _marker(rc: Rect2, col: Color, only := [0, 1, 2, 3]) -> void:
 	var r := rc.grow(-3.0)
 	var l := rc.size.x * 0.22
+	var idx := -1
 	for corner in [[r.position, Vector2(1, 0), Vector2(0, 1)], [Vector2(r.end.x, r.position.y), Vector2(-1, 0), Vector2(0, 1)],
 			[Vector2(r.position.x, r.end.y), Vector2(1, 0), Vector2(0, -1)], [r.end, Vector2(-1, 0), Vector2(0, -1)]]:
+		idx += 1
+		if not only.has(idx):
+			continue
 		_hud.draw_line(corner[0], corner[0] + corner[1] * l, col, 2.0)
 		_hud.draw_line(corner[0], corner[0] + corner[2] * l, col, 2.0)
 
@@ -310,10 +315,19 @@ func _draw_hud() -> void:
 	# marqueurs de case discrets (coins) : voleurs en rouge, robots en bleu (+ la case devant, plus pâle)
 	for it in world.intruders:
 		if it.state == "actif":
-			_marker(_cell_rect(lay, lay.k + it.x, RAIL_ROW + it.ry), Color(1.0, 0.40, 0.32, 0.50))
+			var only: Array = [0, 1, 2, 3]
+			for rb2 in world.robots:
+				if not rb2.hs and rb2.pos == it.x and it.ry == 0:
+					only = [0, 3]  # case partagée avec un robot : voleur sur l'autre diagonale
+			_marker(_cell_rect(lay, lay.k + it.x, RAIL_ROW + it.ry), Color(1.0, 0.40, 0.32, 0.65 if only.size() < 4 else 0.50), only)
 	for rb in world.robots:
 		if not rb.hs:
-			_marker(_cell_rect(lay, lay.k + rb.pos, RAIL_ROW), Color(0.45, 0.85, 1.0, 0.50))
+			var shared := false
+			for it2 in world.intruders:
+				if it2.state == "actif" and it2.ry == 0 and it2.x == rb.pos:
+					shared = true
+			# case partagée avec un voleur : coins alternés (robot sur la diagonale haut-droit / bas-gauche)
+			_marker(_cell_rect(lay, lay.k + rb.pos, RAIL_ROW), Color(0.45, 0.85, 1.0, 0.65 if shared else 0.50), [1, 2] if shared else [0, 1, 2, 3])
 			_marker(_cell_rect(lay, lay.k + rb.pos + rb.facing, RAIL_ROW), Color(0.45, 0.85, 1.0, 0.22))
 	for i in world.robots.size():
 		var rb: Dictionary = world.robots[i]
