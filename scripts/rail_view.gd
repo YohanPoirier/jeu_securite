@@ -156,7 +156,8 @@ func _smooth_t() -> float:
 
 func _robot_center(lay: Dictionary, rb: Dictionary) -> Vector2:
 	var col: float = lay.k + _smooth(rb.prev, rb.pos)
-	return Vector2(lay.x0 + (col + 0.5) * lay.cell, lay.y0 + (RAIL_ROW + 0.5) * lay.cell)
+	var row: float = RAIL_ROW + _smooth(rb.pry, rb.ry)
+	return Vector2(lay.x0 + (col + 0.5) * lay.cell, lay.y0 + (row + 0.5) * lay.cell)
 
 
 ## Plusieurs personnages sur une même case : on les range côte à côte, en plus petit.
@@ -166,7 +167,7 @@ func _slots() -> Dictionary:
 	if world == null:
 		return by_cell
 	for rb in world.robots:
-		var key: int = rb.pos
+		var key: int = rb.pos + rb.ry * 1000
 		by_cell[key] = by_cell.get(key, []) + ["r" + str(rb.id)]
 	for j in world.intruders.size():
 		if world.intruders[j].state != "attente":
@@ -317,17 +318,17 @@ func _draw_hud() -> void:
 		if it.state == "actif":
 			var only: Array = [0, 1, 2, 3]
 			for rb2 in world.robots:
-				if not rb2.hs and rb2.pos == it.x and it.ry == 0:
+				if not rb2.hs and rb2.pos == it.x and it.ry == rb2.ry:
 					only = [0, 3]  # case partagée avec un robot : voleur sur l'autre diagonale
 			_marker(_cell_rect(lay, lay.k + it.x, RAIL_ROW + it.ry), Color(1.0, 0.40, 0.32, 0.65 if only.size() < 4 else 0.50), only)
 	for rb in world.robots:
 		if not rb.hs:
 			var shared := false
 			for it2 in world.intruders:
-				if it2.state == "actif" and it2.ry == 0 and it2.x == rb.pos:
+				if it2.state == "actif" and it2.ry == rb.ry and it2.x == rb.pos:
 					shared = true
 			# case partagée avec un voleur : coins alternés (robot sur la diagonale haut-droit / bas-gauche)
-			_marker(_cell_rect(lay, lay.k + rb.pos, RAIL_ROW), Color(0.45, 0.85, 1.0, 0.65 if shared else 0.50), [1, 2] if shared else [0, 1, 2, 3])
+			_marker(_cell_rect(lay, lay.k + rb.pos, RAIL_ROW + rb.ry), Color(0.45, 0.85, 1.0, 0.65 if shared else 0.50), [1, 2] if shared else [0, 1, 2, 3])
 	for i in world.robots.size():
 		var rb: Dictionary = world.robots[i]
 		var sl: Dictionary = _slot(slots, "r" + str(rb.id))
@@ -718,8 +719,10 @@ func _update_night(lay: Dictionary, lamps: Array, slots: Dictionary) -> void:
 				continue
 			var c: Vector2 = _robot_pos(lay, rb, slots)
 			var f := float(rb.facing)
-			pos.append(c + Vector2(f * cell * 0.42 * _slot(slots, "r" + str(rb.id)).sc, cell * 0.08))
-			dirs.append(Vector2(f, 0.0))
+			var d := Vector2(rb.dir)
+			var lamp_off := Vector2(f * cell * 0.42, cell * 0.08) if rb.dir.x != 0 else Vector2(0.0, d.y * cell * 0.42)
+			pos.append(c + lamp_off * _slot(slots, "r" + str(rb.id)).sc)
+			dirs.append(d)
 			bodies.append(c)
 	var n := pos.size()
 	while pos.size() < 8:

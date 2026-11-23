@@ -422,6 +422,8 @@ func _atom():
 				if not _expect_op(")", "Il manque « ) » pour fermer l'appel de %s." % t.v):
 					return null
 				return {"k": "call", "name": t.v, "args": args, "line": t.line}
+			if ["nord", "sud", "est", "ouest"].has(t.v):
+				return {"k": "str", "v": t.v, "line": t.line}  # les points cardinaux sont des constantes
 			return {"k": "name", "id": t.v, "line": t.line}
 		"OP":
 			if t.v == "(":

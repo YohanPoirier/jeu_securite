@@ -24,7 +24,7 @@
  ],
  "api": [
   "avancer",
-  "reculer",
+  "tourner",
   "attendre",
   "regarder",
   "assommer"
@@ -41,7 +41,7 @@
   }
  ],
  "solutions": {
-  "garde": "while True:\n    while regarder() != \"mur\":\n        if regarder() == \"voleur\":\n            assommer()\n        else:\n            avancer()\n    reculer()\n    while regarder() != \"mur\":\n        if regarder() == \"voleur\":\n            assommer()\n        else:\n            reculer()\n    avancer()\n"
+  "garde": "tourner(est)\nwhile True:\n    while regarder() != \"mur\":\n        if regarder() == \"voleur\":\n            assommer()\n        else:\n            avancer()\n    tourner(ouest)\n    while regarder() != \"mur\":\n        if regarder() == \"voleur\":\n            assommer()\n        else:\n            avancer()\n    tourner(est)\n"
  },
  "salles": 2
 }

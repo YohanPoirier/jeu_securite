@@ -16,13 +16,13 @@ const VM = preload("res://scripts/vm.gd")
 const PyOps = preload("res://scripts/pyops.gd")
 
 const API_ARITY := {
-	"avancer": 0, "reculer": 0, "attendre": 1,
+	"avancer": 0, "tourner": 1, "attendre": 1,
 	"regarder": 0, "assommer": 0,
 }
 
 const API_DOC := {
-	"avancer": "avancer() : avance d'une case vers la droite (1 tick)",
-	"reculer": "reculer() : recule d'une case vers la gauche (1 tick)",
+	"avancer": "avancer() : avance d'une case dans la direction où tu regardes (1 tick)",
+	"tourner": "tourner(direction) : te tourne vers nord, sud, est ou ouest (1 tick)",
 	"attendre": "attendre(n) : ne fait rien pendant n ticks",
 	"regarder": "regarder() : décrit la case devant toi : \"mur\", \"voleur\" ou \"rien\" (instantané)",
 	"assommer": "assommer() : assomme le voleur qui est sur la case devant toi (1 tick)",
@@ -41,6 +41,7 @@ var rng := RandomNumberGenerator.new()
 var taken: Dictionary = {}  # étagères déjà vidées : Vector2i(colonne, ±3) -> true
 var gates: Array = [{"state": "ferme", "forced": false}, {"state": "ferme", "forced": false}]  # porte gauche, porte droite ; state : ferme | force ; forced : déjà déverrouillée
 var _reserved: Dictionary = {}
+const DIRS := {"nord": Vector2i(0, -1), "sud": Vector2i(0, 1), "est": Vector2i(1, 0), "ouest": Vector2i(-1, 0)}
 const START_OUT := 4
 const STEAL_TICKS := 3  # durée pour prendre l'objet  # les voleurs partent à cette distance en dehors de l'écran
 
@@ -78,7 +79,7 @@ func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 	for spec in specs:
 		var start := clampi(int(spec.get("depart", 0)), 0, length - 1)
 		var code = codes.get(spec.id, [])
-		var rb := {"id": spec.id, "nom": spec.get("nom", spec.id), "pos": start, "prev": start, "vm": null, "hs": code == null, "facing": 1, "stun": false}
+		var rb := {"id": spec.id, "nom": spec.get("nom", spec.id), "pos": start, "prev": start, "ry": 0, "pry": 0, "dir": Vector2i(1, 0), "vm": null, "hs": code == null, "facing": 1, "stun": false}
 		var vm := VM.new(code if code != null else [], self, level.get("builtins", []))
 		vm.robot_ref = rb
 		vm.budget = int(level.get("reflexion", 200))
@@ -97,14 +98,17 @@ func call_api(name: String, args: Array, rb: Dictionary):
 		return PyOps.err("TypeError : %s() attend %d argument(s), pas %d." % [name, API_ARITY[name], args.size()])
 	match name:
 		"avancer":
-			rb.facing = 1  # le robot regarde (et éclaire) du côté où il va
-			if rb.pos < length - 1:
-				rb.pos += 1
+			var to := Vector2i(rb.pos + rb.dir.x, rb.ry + rb.dir.y)
+			if walkable(to.x, to.y):
+				rb.pos = to.x
+				rb.ry = to.y
 			return {"value": null, "cost": 1}
-		"reculer":
-			rb.facing = -1
-			if rb.pos > 0:
-				rb.pos -= 1
+		"tourner":
+			if typeof(args[0]) != TYPE_STRING or not DIRS.has(args[0]):
+				return PyOps.err("ValueError : tourner(direction) attend nord, sud, est ou ouest.")
+			rb.dir = DIRS[args[0]]
+			if rb.dir.x != 0:
+				rb.facing = rb.dir.x  # pour le dessin : le robot garde sa dernière orientation gauche/droite
 			return {"value": null, "cost": 1}
 		"attendre":
 			if typeof(args[0]) != TYPE_INT or args[0] < 0:
@@ -214,14 +218,27 @@ func _gate_index(it: Dictionary) -> int:
 	return 0 if it.side == 1 else 1
 
 
+## Cases praticables par les robots : le couloir, le seuil de chaque salle (au nord et au sud de sa
+## première colonne) et le sol des salles. Les étagères et les murs ne le sont pas.
+func walkable(x: int, ry: int) -> bool:
+	if ry == 0:
+		return x >= 0 and x < length
+	for r in rooms():
+		if absi(ry) == 1 and x == r.c0:
+			return true
+		if absi(ry) == 2 and x >= r.c0 and x < r.c0 + r.w:
+			return true
+	return false
+
+
 ## Ce que voit un robot : la lampe n'éclaire que la case devant lui (un voleur sur sa propre case
-## est dans son dos). Au bout du couloir, c'est un mur.
+## est dans son dos). Ce qui n'est pas praticable est un mur.
 func _look(rb: Dictionary) -> String:
-	var cell: int = rb.pos + rb.facing
+	var cell := Vector2i(rb.pos + rb.dir.x, rb.ry + rb.dir.y)
 	for it in intruders:
-		if it.state == "actif" and it.ry == 0 and it.x == cell:
+		if it.state == "actif" and it.x == cell.x and it.ry == cell.y:
 			return "voleur"
-	if cell < 0 or cell >= length:
+	if not walkable(cell.x, cell.y):
 		return "mur"
 	return "rien"
 
@@ -324,6 +341,7 @@ func tick() -> void:
 	tick_n += 1
 	for rb in robots:
 		rb.prev = rb.pos
+		rb.pry = rb.ry
 		rb.stun = false
 	for rb in robots:
 		if rb.hs:
@@ -351,9 +369,9 @@ func tick() -> void:
 	for rb in robots:
 		if rb.hs or not rb.stun:
 			continue
-		var cells := [rb.prev + rb.facing]
+		var cell := Vector2i(rb.prev + rb.dir.x, rb.pry + rb.dir.y)
 		for it in intruders:
-			if it.state == "actif" and it.py == 0 and cells.has(it.px):
+			if it.state == "actif" and it.px == cell.x and it.py == cell.y:
 				it.state = "arrete"
 	for it in intruders:
 		if it.state != "arrete":

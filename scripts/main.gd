@@ -69,6 +69,9 @@ var out_panel: PanelContainer
 var editor_panel: PanelContainer
 var toolbox: VBoxContainer  # boîte à outils : rappel des fonctions utilisables (repliable)
 var toolbox_btn: Button
+var tex_tb_open: Texture2D
+var tex_tb_closed: Texture2D
+const TOOLBOX_BG := Color(0.13, 0.15, 0.20)
 var editor_title: Label
 var editor_holder: VBoxContainer
 var console: RichTextLabel
@@ -423,21 +426,36 @@ func _build_editor_panel() -> void:
 	editor_title.add_theme_font_size_override("font_size", 16)
 	editor_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	eh.add_child(editor_title)
+	tex_tb_closed = _svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
+<path d="M8.5 8V6a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 15.5 6v2" fill="none" stroke="#b8c4d8" stroke-width="2"/>
+<rect x="3" y="8" width="18" height="12" rx="2" fill="#b8c4d8"/>
+<rect x="3" y="12.2" width="18" height="1.6" fill="#1a1d27"/>
+<rect x="10.5" y="11" width="3" height="4" rx="0.8" fill="#f5a524"/></svg>""")
+	tex_tb_open = _svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
+<path d="M5 9 L3 3.5 H21 L19 9" fill="none" stroke="#b8c4d8" stroke-width="2" stroke-linejoin="round"/>
+<rect x="3" y="10" width="18" height="10" rx="2" fill="#b8c4d8"/>
+<rect x="3" y="13.6" width="18" height="1.4" fill="#1a1d27"/>
+<rect x="10.5" y="12.6" width="3" height="3.6" rx="0.8" fill="#f5a524"/></svg>""")
+	toolbox_btn = _icon_button(tex_tb_closed,
+		"Boîte à outils : rappel des fonctions du niveau (un clic sur l'une d'elles l'insère)")
+	toolbox_btn.toggle_mode = true
+	var sb_on := StyleBoxFlat.new()
+	sb_on.bg_color = TOOLBOX_BG
+	sb_on.corner_radius_top_left = 6
+	sb_on.corner_radius_top_right = 6
+	sb_on.set_content_margin_all(4)
+	toolbox_btn.add_theme_stylebox_override("pressed", sb_on)
+	toolbox_btn.add_theme_stylebox_override("hover_pressed", sb_on)
+	toolbox_btn.toggled.connect(func(on):
+		toolbox.visible = on
+		toolbox_btn.icon = tex_tb_open if on else tex_tb_closed)
+	eh.add_child(toolbox_btn)
 	var b_reset := _icon_button(_svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
 <path d="M20 12a8 8 0 1 1-2.6-5.9" fill="none" stroke="#b8c4d8" stroke-width="2.2" stroke-linecap="round"/>
 <path d="M20.5 3.5v5h-5" fill="none" stroke="#b8c4d8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""),
 		"Remettre le code de départ")
 	b_reset.pressed.connect(_on_reset_code)
 	eh.add_child(b_reset)
-	toolbox_btn = _icon_button(_svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
-<path d="M8.5 8V6a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 15.5 6v2" fill="none" stroke="#b8c4d8" stroke-width="2"/>
-<rect x="3" y="8" width="18" height="12" rx="2" fill="#b8c4d8"/>
-<rect x="3" y="12.2" width="18" height="1.6" fill="#1a1d27"/>
-<rect x="10.5" y="11" width="3" height="4" rx="0.8" fill="#f5a524"/></svg>"""),
-		"Boîte à outils : rappel des fonctions du niveau (un clic sur l'une d'elles l'insère)")
-	toolbox_btn.toggle_mode = true
-	toolbox_btn.toggled.connect(func(on): toolbox.visible = on)
-	eh.add_child(toolbox_btn)
 	var b_close := Button.new()
 	b_close.text = "✕"
 	b_close.flat = true
@@ -479,10 +497,18 @@ func _refresh_toolbox() -> void:
 	var lv: Dictionary = levels[cur]
 	var box := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.13, 0.15, 0.20)
+	sb.bg_color = TOOLBOX_BG
 	sb.set_corner_radius_all(6)
 	sb.set_content_margin_all(8)
 	box.add_theme_stylebox_override("panel", sb)
+	var link := Control.new()  # languette reliant le panneau à l'icône de la boîte à outils
+	link.custom_minimum_size = Vector2(0, 6)
+	link.draw.connect(func():
+		var x: float = toolbox_btn.global_position.x + toolbox_btn.size.x / 2.0 - link.global_position.x
+		var w: float = toolbox_btn.size.x
+		link.draw_rect(Rect2(x - w / 2.0, 0, w, 6), TOOLBOX_BG))
+	toolbox.add_theme_constant_override("separation", 0)
+	toolbox.add_child(link)
 	toolbox.add_child(box)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 2)
@@ -833,7 +859,7 @@ func _help_text(tab: String) -> String:
 				t += "[b]Répéter : while[/b]\n[code]while True:\n    avancer()[/code]\nTrue signifie « vrai, toujours » : le bloc indenté se répète sans fin.\n\n"
 			if "conditions" in syn:
 				var cond := "regarder() == \"mur\""
-				t += "[b]Décider : if / elif / else[/b]\n[code]if %s:\n    avancer()\nelse:\n    reculer()[/code]\nOn compare avec ==, !=, <, <=, >, >= et on combine avec and, or, not. elif signifie « sinon si ».\n\n" % cond
+				t += "[b]Décider : if / elif / else[/b]\n[code]if %s:\n    avancer()\nelse:\n    tourner(ouest)[/code]\nOn compare avec ==, !=, <, <=, >, >= et on combine avec and, or, not. elif signifie « sinon si ».\n\n" % cond
 			if "variables" in syn:
 				t += "[b]Variables[/b]\n[code]n = 3\nwhile n > 0:\n    avancer()\n    n = n - 1[/code]\nUne variable garde une valeur ; on peut la modifier.\n\n"
 			if "arithmetique" in syn:
