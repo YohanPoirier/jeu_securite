@@ -1,7 +1,7 @@
 {
  "id": "niveau_03",
  "titre": "Deux intrus",
- "enonce": "Deux intrus arrivent. Même idée qu'au niveau précédent : patrouille d'un bout à l'autre du couloir, sans en connaître la longueur. Les voleurs forcent une porte, prennent un objet dans une salle, puis essaient de ressortir. vu() détecte un voleur sur ta case ou la case devant toi ; assommer() l'arrête.",
+ "enonce": "Deux intrus arrivent. Même idée qu'au niveau précédent : patrouille d'un bout à l'autre du couloir. regarder() décrit la case devant toi : \"mur\", \"voleur\" ou \"rien\". assommer() assomme le voleur qui est devant toi. Les voleurs forcent une porte, prennent un objet dans une salle puis essaient de ressortir. Un voleur sur ta case est dans ton dos : tu ne le vois pas.",
  "longueur": [
   6,
   10
@@ -26,13 +26,13 @@
   "avancer",
   "reculer",
   "attendre",
-  "vu",
+  "regarder",
   "assommer"
  ],
  "builtins": [
   "print"
  ],
- "code_initial": "i = 0\nwhile True:\n    # à toi de jouer\n    pass\n",
+ "code_initial": "while True:\n    # à toi de jouer\n    pass\n",
  "robots": [
   {
    "id": "garde",
@@ -41,7 +41,7 @@
   }
  ],
  "solutions": {
-  "garde": "while True:\n    i = 0\n    while i < 12:\n        if vu():\n            assommer()\n        avancer()\n        i = i + 1\n    i = 0\n    while i < 12:\n        if vu():\n            assommer()\n        reculer()\n        i = i + 1\n"
+  "garde": "while True:\n    while regarder() != \"mur\":\n        if regarder() == \"voleur\":\n            assommer()\n        else:\n            avancer()\n    reculer()\n    while regarder() != \"mur\":\n        if regarder() == \"voleur\":\n            assommer()\n        else:\n            reculer()\n    avancer()\n"
  },
  "salles": 2
 }

@@ -17,15 +17,15 @@ const PyOps = preload("res://scripts/pyops.gd")
 
 const API_ARITY := {
 	"avancer": 0, "reculer": 0, "attendre": 1,
-	"vu": 0, "assommer": 0,
+	"regarder": 0, "assommer": 0,
 }
 
 const API_DOC := {
 	"avancer": "avancer() : avance d'une case vers la droite (1 tick)",
 	"reculer": "reculer() : recule d'une case vers la gauche (1 tick)",
 	"attendre": "attendre(n) : ne fait rien pendant n ticks",
-	"vu": "vu() : True si un voleur est sur ta case ou sur la case devant toi (instantané)",
-	"assommer": "assommer() : assomme le voleur sur ta case ou sur la case devant toi (1 tick)",
+	"regarder": "regarder() : décrit la case devant toi : \"mur\", \"voleur\" ou \"rien\" (instantané)",
+	"assommer": "assommer() : assomme le voleur qui est sur la case devant toi (1 tick)",
 }
 
 var level: Dictionary
@@ -110,10 +110,10 @@ func call_api(name: String, args: Array, rb: Dictionary):
 			if typeof(args[0]) != TYPE_INT or args[0] < 0:
 				return PyOps.err("ValueError : attendre(n) attend un nombre entier positif ou nul.")
 			return {"value": null, "cost": args[0]}
-		"vu":
-			return {"value": _sees_thief(rb), "cost": 0}
+		"regarder":
+			return {"value": _look(rb), "cost": 0}
 		"assommer":
-			rb.stun = true  # résolu à la fin du tick, sur la situation du début du tick
+			rb.stun = true  # résolu à la fin du tick, sur la situation du début du tick (case devant le robot)
 			return {"value": null, "cost": 1}
 	return PyOps.err("Fonction inconnue : %s" % name)
 
@@ -214,17 +214,16 @@ func _gate_index(it: Dictionary) -> int:
 	return 0 if it.side == 1 else 1
 
 
-## Les cases que surveille un robot : la sienne et celle devant lui.
-func _watched(rb: Dictionary) -> Array:
-	return [rb.pos, rb.pos + rb.facing]
-
-
-func _sees_thief(rb: Dictionary) -> bool:
-	var cells := _watched(rb)
+## Ce que voit un robot : la lampe n'éclaire que la case devant lui (un voleur sur sa propre case
+## est dans son dos). Au bout du couloir, c'est un mur.
+func _look(rb: Dictionary) -> String:
+	var cell: int = rb.pos + rb.facing
 	for it in intruders:
-		if it.state == "actif" and it.ry == 0 and cells.has(it.x):
-			return true
-	return false
+		if it.state == "actif" and it.ry == 0 and it.x == cell:
+			return "voleur"
+	if cell < 0 or cell >= length:
+		return "mur"
+	return "rien"
 
 
 ## Début d'une activité du voleur : une marche vers la case `to` (durée = periode ticks, animée en
@@ -352,7 +351,7 @@ func tick() -> void:
 	for rb in robots:
 		if rb.hs or not rb.stun:
 			continue
-		var cells := [rb.prev, rb.prev + rb.facing]
+		var cells := [rb.prev + rb.facing]
 		for it in intruders:
 			if it.state == "actif" and it.py == 0 and cells.has(it.px):
 				it.state = "arrete"

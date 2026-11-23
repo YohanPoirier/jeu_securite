@@ -1,7 +1,7 @@
 {
  "id": "niveau_01",
  "titre": "Premier garde",
- "enonce": "Le couloir fait 6 cases (0 à 5). Des voleurs arrivent de l'extérieur, forcent une porte, prennent un objet dans une salle puis essaient de ressortir. Ton robot regarde dans le sens où il va : vu() dit si un voleur est sur sa case ou la case devant lui, assommer() l'arrête. Le robot part de la case 0. Chaque action dure 1 tick. Écris une patrouille qui boucle indéfiniment.",
+ "enonce": "Le couloir fait 6 cases. Ton robot regarde dans le sens où il va. Écris une patrouille qui boucle indéfiniment : va jusqu'au mur, fais demi-tour, et assomme les voleurs que tu vois. regarder() décrit la case devant toi : \"mur\", \"voleur\" ou \"rien\". assommer() assomme le voleur qui est devant toi. Les voleurs forcent une porte, prennent un objet dans une salle puis essaient de ressortir. Un voleur sur ta case est dans ton dos : tu ne le vois pas.",
  "longueur": 6,
  "reflexion": 200,
  "intrus": {
@@ -19,13 +19,13 @@
  "api": [
   "avancer",
   "reculer",
-  "vu",
+  "regarder",
   "assommer"
  ],
  "builtins": [
   "print"
  ],
- "code_initial": "# Un appel de fonction s'écrit : avancer()\n# « while True: » répète le bloc indenté sans fin.\n# « if vu(): » exécute le bloc seulement si un voleur est devant toi.\nwhile True:\n    avancer()\n",
+ "code_initial": "# while True: répète le bloc indenté sans fin.\n# if regarder() == \"voleur\": exécute le bloc si un voleur est devant toi.\nwhile True:\n    avancer()\n",
  "robots": [
   {
    "id": "garde",
@@ -34,7 +34,7 @@
   }
  ],
  "solutions": {
-  "garde": "while True:\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    avancer()\n    if vu():\n        assommer()\n    reculer()\n    if vu():\n        assommer()\n    reculer()\n    if vu():\n        assommer()\n    reculer()\n    if vu():\n        assommer()\n    reculer()\n    if vu():\n        assommer()\n    reculer()\n"
+  "garde": "while True:\n    while regarder() != \"mur\":\n        if regarder() == \"voleur\":\n            assommer()\n        else:\n            avancer()\n    reculer()\n    while regarder() != \"mur\":\n        if regarder() == \"voleur\":\n            assommer()\n        else:\n            reculer()\n    avancer()\n"
  },
  "salles": 1
 }
