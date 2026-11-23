@@ -824,7 +824,7 @@ func _help_text(tab: String) -> String:
 			if "boucle_while" in syn:
 				t += "[b]Répéter : while[/b]\n[code]while True:\n    avancer()[/code]\nTrue signifie « vrai, toujours » : le bloc indenté se répète sans fin.\n\n"
 			if "conditions" in syn:
-				var cond := "fin_du_couloir()" if api.has("fin_du_couloir") else "vu()"
+				var cond := "vu()"
 				t += "[b]Décider : if / elif / else[/b]\n[code]if %s:\n    avancer()\nelse:\n    reculer()[/code]\nOn compare avec ==, !=, <, <=, >, >= et on combine avec and, or, not. elif signifie « sinon si ».\n\n" % cond
 			if "variables" in syn:
 				t += "[b]Variables[/b]\n[code]n = 3\nwhile n > 0:\n    avancer()\n    n = n - 1[/code]\nUne variable garde une valeur ; on peut la modifier.\n\n"

@@ -17,7 +17,6 @@ const PyOps = preload("res://scripts/pyops.gd")
 
 const API_ARITY := {
 	"avancer": 0, "reculer": 0, "attendre": 1,
-	"fin_du_couloir": 0, "debut_du_couloir": 0,
 	"vu": 0, "assommer": 0,
 }
 
@@ -25,8 +24,6 @@ const API_DOC := {
 	"avancer": "avancer() : avance d'une case vers la droite (1 tick)",
 	"reculer": "reculer() : recule d'une case vers la gauche (1 tick)",
 	"attendre": "attendre(n) : ne fait rien pendant n ticks",
-	"fin_du_couloir": "fin_du_couloir() : True si le robot est tout à droite (instantané)",
-	"debut_du_couloir": "debut_du_couloir() : True si le robot est tout à gauche (instantané)",
 	"vu": "vu() : True si un voleur est sur ta case ou sur la case devant toi (instantané)",
 	"assommer": "assommer() : assomme le voleur sur ta case ou sur la case devant toi (1 tick)",
 }
@@ -113,10 +110,6 @@ func call_api(name: String, args: Array, rb: Dictionary):
 			if typeof(args[0]) != TYPE_INT or args[0] < 0:
 				return PyOps.err("ValueError : attendre(n) attend un nombre entier positif ou nul.")
 			return {"value": null, "cost": args[0]}
-		"fin_du_couloir":
-			return {"value": rb.pos == length - 1, "cost": 0}
-		"debut_du_couloir":
-			return {"value": rb.pos == 0, "cost": 0}
 		"vu":
 			return {"value": _sees_thief(rb), "cost": 0}
 		"assommer":
