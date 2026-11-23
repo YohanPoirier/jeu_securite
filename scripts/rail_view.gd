@@ -619,6 +619,10 @@ func _draw_robot(lay: Dictionary, rb: Dictionary, hovered: bool, slot := {"off":
 	var head_col := Color(0.46, 0.48, 0.52) if broken else C_ROBOT.lightened(0.18)
 	draw_set_transform(c + Vector2(0, u * 0.36), 0.0, Vector2(1.0, 0.3))
 	draw_circle(Vector2.ZERO, u * 0.30, Color(0, 0, 0, 0.35))
+	if rb.dir.y != 0:
+		_draw_robot_vertical(c, u, b, float(rb.dir.y), broken, body_col, head_col)
+		_robot_frame(c, u, broken, hovered)
+		return
 	draw_set_transform(c, 0.0, Vector2(f, 1.0))  # on dessine vers la droite ; f retourne le dessin
 	# chenilles
 	_rr(Rect2(-u * 0.27, u * 0.20 + b, u * 0.54, u * 0.16), Color(0.16, 0.17, 0.20), u * 0.07)
@@ -655,8 +659,61 @@ func _draw_robot(lay: Dictionary, rb: Dictionary, hovered: bool, slot := {"off":
 	if broken:  # un peu de fumée
 		for j in 3:
 			draw_circle(c + Vector2(-u * 0.04 + j * u * 0.05, -u * 0.45 - j * u * 0.09), u * (0.04 + 0.01 * j), Color(0.7, 0.7, 0.7, 0.55 - 0.15 * j))
+	_robot_frame(c, u, broken, hovered)
+
+
+func _robot_frame(c: Vector2, u: float, broken: bool, hovered: bool) -> void:
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if broken:  # un peu de fumée
+		for j in 3:
+			draw_circle(c + Vector2(-u * 0.04 + j * u * 0.05, -u * 0.45 - j * u * 0.09), u * (0.04 + 0.01 * j), Color(0.7, 0.7, 0.7, 0.55 - 0.15 * j))
 	_rr(Rect2(c - Vector2(u * 0.36, u * 0.44), Vector2(u * 0.72, u * 0.84)),
 		Color(0, 0, 0, 0), u * 0.08, Color(0.95, 0.35, 0.35) if broken else Color(1, 1, 1, 0.85 if hovered else 0.0), 2 if (hovered or broken) else 0)
+
+
+## Robot vu de dos (d = -1, il regarde vers le nord) ou de face (d = +1, vers le sud).
+func _draw_robot_vertical(c: Vector2, u: float, b: float, d: float, broken: bool, body_col: Color, head_col: Color) -> void:
+	draw_set_transform(c, 0.0, Vector2.ONE)
+	var dark := Color(0.16, 0.17, 0.20)
+	var lens := Color(0.30, 0.30, 0.30) if broken else Color(1.0, 0.95, 0.65)
+	# chenilles : deux bandes vues de dos / de face
+	for sx in [-1.0, 1.0]:
+		_rr(Rect2(u * (0.17 if sx > 0 else -0.27), u * 0.14 + b, u * 0.10, u * 0.24), dark, u * 0.05)
+	# la lampe est tenue du côté droit du robot : bras + lampe pointée vers l'avant (haut ou bas de l'écran)
+	var lamp_x := u * 0.19 if d < 0 else -u * 0.29
+	var arm_y := -u * 0.10 if d < 0 else u * 0.02
+	_rr(Rect2(lamp_x, u * 0.0 + b, u * 0.10, u * 0.16), body_col.darkened(0.12), u * 0.03)
+	# corps
+	_rr(Rect2(-u * 0.20, -u * 0.02 + b, u * 0.40, u * 0.26), body_col, u * 0.06)
+	_rr(Rect2(-u * 0.18, -u * 0.015 + b, u * 0.36, u * 0.045), body_col.lightened(0.3), u * 0.02)
+	draw_rect(Rect2(-u * 0.20, u * 0.17 + b, u * 0.40, u * 0.03), body_col.darkened(0.35))
+	if d > 0:
+		draw_circle(Vector2(0, u * 0.09 + b), u * 0.05, Color(0.95, 0.80, 0.25))  # insigne visible de face
+	else:
+		_rr(Rect2(-u * 0.08, u * 0.04 + b, u * 0.16, u * 0.10), body_col.darkened(0.2), u * 0.03)  # bloc batterie dans le dos
+	# bras et lampe : tendus vers l'avant
+	var tip_y := -u * 0.26 if d < 0 else u * 0.30
+	_rr(Rect2(lamp_x + u * 0.01, minf(u * 0.02 + b, tip_y + b), u * 0.08, absf(tip_y - u * 0.02)), Color(0.18, 0.19, 0.22), u * 0.03)
+	draw_rect(Rect2(lamp_x, tip_y + b - (u * 0.01 if d < 0 else -u * 0.0), u * 0.10, u * 0.035), lens)
+	# tête
+	_rr(Rect2(-u * 0.16, -u * 0.29 + b, u * 0.32, u * 0.26), head_col, u * 0.08)
+	if d > 0:
+		_rr(Rect2(-u * 0.13, -u * 0.25 + b, u * 0.26, u * 0.14), Color(0.07, 0.09, 0.15), u * 0.05)
+		for ex in [-0.06, 0.06]:
+			if broken:
+				var ec := Vector2(u * ex, -u * 0.18 + b)
+				var k := u * 0.03
+				draw_line(ec + Vector2(-k, -k), ec + Vector2(k, k), Color(0.95, 0.3, 0.3), 2.0)
+				draw_line(ec + Vector2(-k, k), ec + Vector2(k, -k), Color(0.95, 0.3, 0.3), 2.0)
+			else:
+				draw_circle(Vector2(u * ex, -u * 0.18 + b), u * 0.03, Color(0.45, 0.92, 1.0))
+	else:
+		_rr(Rect2(-u * 0.10, -u * 0.17 + b, u * 0.20, u * 0.05), head_col.darkened(0.2), u * 0.02)  # nuque, pas de visage
+	# casquette de vigile (visière vers l'avant)
+	_rr(Rect2(-u * 0.15, -u * 0.37 + b, u * 0.30, u * 0.10), Color(0.12, 0.16, 0.32), u * 0.04)
+	if d > 0:
+		_rr(Rect2(-u * 0.12, -u * 0.29 + b, u * 0.24, u * 0.035), Color(0.09, 0.12, 0.25), u * 0.015)
+	draw_circle(Vector2(0, -u * 0.33 + b), u * 0.025, Color(0.95, 0.80, 0.25))
 
 
 ## L'intrus : voleur à pull rayé et masque ; assommé, il est allongé avec des étoiles.
