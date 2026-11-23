@@ -328,7 +328,6 @@ func _draw_hud() -> void:
 					shared = true
 			# case partagée avec un voleur : coins alternés (robot sur la diagonale haut-droit / bas-gauche)
 			_marker(_cell_rect(lay, lay.k + rb.pos, RAIL_ROW), Color(0.45, 0.85, 1.0, 0.65 if shared else 0.50), [1, 2] if shared else [0, 1, 2, 3])
-			_marker(_cell_rect(lay, lay.k + rb.pos + rb.facing, RAIL_ROW), Color(0.45, 0.85, 1.0, 0.22))
 	for i in world.robots.size():
 		var rb: Dictionary = world.robots[i]
 		var sl: Dictionary = _slot(slots, "r" + str(rb.id))
