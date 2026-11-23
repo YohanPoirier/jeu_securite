@@ -423,17 +423,21 @@ func _build_editor_panel() -> void:
 	editor_title.add_theme_font_size_override("font_size", 16)
 	editor_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	eh.add_child(editor_title)
-	toolbox_btn = Button.new()
-	toolbox_btn.text = "Outils ▾"
-	toolbox_btn.flat = true
-	toolbox_btn.tooltip_text = "Rappel des fonctions utilisables dans ce niveau (clique sur l'une d'elles pour l'insérer)"
-	toolbox_btn.pressed.connect(_toggle_toolbox)
-	eh.add_child(toolbox_btn)
-	var b_reset := Button.new()
-	b_reset.text = "↺ Code de départ"
-	b_reset.flat = true
+	var b_reset := _icon_button(_svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
+<path d="M20 12a8 8 0 1 1-2.6-5.9" fill="none" stroke="#b8c4d8" stroke-width="2.2" stroke-linecap="round"/>
+<path d="M20.5 3.5v5h-5" fill="none" stroke="#b8c4d8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""),
+		"Remettre le code de départ")
 	b_reset.pressed.connect(_on_reset_code)
 	eh.add_child(b_reset)
+	toolbox_btn = _icon_button(_svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
+<path d="M8.5 8V6a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 15.5 6v2" fill="none" stroke="#b8c4d8" stroke-width="2"/>
+<rect x="3" y="8" width="18" height="12" rx="2" fill="#b8c4d8"/>
+<rect x="3" y="12.2" width="18" height="1.6" fill="#1a1d27"/>
+<rect x="10.5" y="11" width="3" height="4" rx="0.8" fill="#f5a524"/></svg>"""),
+		"Boîte à outils : rappel des fonctions du niveau (un clic sur l'une d'elles l'insère)")
+	toolbox_btn.toggle_mode = true
+	toolbox_btn.toggled.connect(func(on): toolbox.visible = on)
+	eh.add_child(toolbox_btn)
 	var b_close := Button.new()
 	b_close.text = "✕"
 	b_close.flat = true
@@ -448,8 +452,22 @@ func _build_editor_panel() -> void:
 
 
 func _toggle_toolbox() -> void:
-	toolbox.visible = not toolbox.visible
-	toolbox_btn.text = "Outils ▴" if toolbox.visible else "Outils ▾"
+	toolbox_btn.button_pressed = not toolbox_btn.button_pressed
+
+
+func _svg_icon(svg: String) -> Texture2D:
+	var img := Image.new()
+	img.load_svg_from_string(svg)
+	return ImageTexture.create_from_image(img)
+
+
+func _icon_button(tex: Texture2D, tip: String) -> Button:
+	var b := Button.new()
+	b.icon = tex
+	b.flat = true
+	b.tooltip_text = tip
+	b.focus_mode = Control.FOCUS_NONE
+	return b
 
 
 ## Boîte à outils : les fonctions (et notions de syntaxe) disponibles dans le niveau en cours.
@@ -475,11 +493,6 @@ func _refresh_toolbox() -> void:
 		var parts := doc.split(" : ", true, 1)
 		var args := "1" if World.API_ARITY[f] == 1 else ""
 		items.append([f + "(" + args + ")", String(parts[0]), String(parts[1]) if parts.size() > 1 else ""])
-	for b in lv.get("builtins", []):
-		if b == "print":
-			items.append(["print()", "print(...)", "affiche dans la fenêtre des sorties"])
-		elif b == "range":
-			items.append(["range()", "range(n)", "à utiliser avec for"])
 	for it in items:
 		var row := HBoxContainer.new()
 		var btn := Button.new()
@@ -499,19 +512,6 @@ func _refresh_toolbox() -> void:
 		d.add_theme_color_override("font_color", Color(0.78, 0.80, 0.86))
 		row.add_child(d)
 		col.add_child(row)
-	var names := {"boucle_while": "while", "conditions": "if / elif / else", "variables": "variables (n = 3)",
-		"arithmetique": "calculs (+ - * // %)", "boucle_for": "for ... in range(...)"}
-	var syn: Array = []
-	for k in lv.get("syntaxe", []):
-		if names.has(k):
-			syn.append(names[k])
-	if not syn.is_empty():
-		var sl := Label.new()
-		sl.text = "Syntaxe : " + ", ".join(syn)
-		sl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		sl.add_theme_font_size_override("font_size", 13)
-		sl.add_theme_color_override("font_color", Color(0.60, 0.63, 0.70))
-		col.add_child(sl)
 
 
 func _insert_snippet(code: String) -> void:
@@ -719,6 +719,14 @@ func _show_modal(kind: String) -> void:
 			l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			modal_box.add_child(l)
 			modal_box.add_child(_modal_button("Fermer", _close_modal))
+		"reset_code":
+			_modal_title("Remettre le code de départ ?", false)
+			var warn := _label("Le programme de %s sera remplacé par le code de départ du niveau. Cette action est définitive." % _robot_name(open_robot))
+			warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			warn.custom_minimum_size = Vector2(380, 0)
+			modal_box.add_child(warn)
+			modal_box.add_child(_modal_button("Remettre le code de départ", _do_reset_code))
+			modal_box.add_child(_modal_button("Annuler", _close_modal))
 		"menu":
 			_modal_title("Menu", true)
 			modal_box.add_child(_modal_button("Recommencer le niveau", _restart_level))
@@ -813,7 +821,7 @@ func _help_text(tab: String) -> String:
 	match tab:
 		"interface":
 			t += "[b]L'entrepôt[/b]\nTon robot circule dans le couloir. Des voleurs forcent une porte, volent un objet dans une salle puis essaient de ressortir avec : il doit les arrêter avant qu'ils ne sortent.\n\n"
-			t += "[b]Programmer un robot[/b]\nClique sur un robot : son éditeur s'ouvre à gauche. Chaque robot a son propre programme. « Outils » déplie un rappel des fonctions du niveau (un clic sur l'une d'elles l'insère dans ton code), ↺ remet le code de départ, ✕ ferme l'éditeur.\n\n"
+			t += "[b]Programmer un robot[/b]\nClique sur un robot : son éditeur s'ouvre à gauche. Chaque robot a son propre programme. la petite boîte à outils déplie un rappel des fonctions du robot (un clic sur l'une d'elles l'insère dans ton code), ↻ remet le code de départ (après confirmation), ✕ ferme l'éditeur.\n\n"
 			t += "[b]Lancer[/b]\n▶ Lancer démarre l'attaque. La petite flèche ▲ permet de choisir une nouvelle attaque, ou de rejouer une ancienne (Attaque 1, 2, 3…) pour déboguer : un rejeu ne valide pas le niveau. ■ Arrêter interrompt la simulation.\n\n"
 			t += "[b]Vitesse[/b]\nLe bouton compteur règle la vitesse. La simulation est en pause tant qu'on n'a pas choisi.\n\n"
 			t += "[b]Réflexion[/b]\nSi le programme calcule trop longtemps avant d'agir, le robot perd son tour : un petit cerveau s'affiche au-dessus de lui.\n\n"
@@ -914,7 +922,13 @@ func _close_editor() -> void:
 
 func _on_reset_code() -> void:
 	if open_robot != "" and not running:
+		_show_modal("reset_code")
+
+
+func _do_reset_code() -> void:
+	if open_robot != "" and editors.has(open_robot):
 		editors[open_robot].text = levels[cur].code_initial
+	_close_modal()
 
 
 # ---------- exécution ----------
