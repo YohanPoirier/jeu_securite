@@ -67,6 +67,8 @@ var attack_btn: Button
 var out_btn: Button
 var out_panel: PanelContainer
 var editor_panel: PanelContainer
+var toolbox: VBoxContainer  # boîte à outils : rappel des fonctions utilisables (repliable)
+var toolbox_btn: Button
 var editor_title: Label
 var editor_holder: VBoxContainer
 var console: RichTextLabel
@@ -421,6 +423,12 @@ func _build_editor_panel() -> void:
 	editor_title.add_theme_font_size_override("font_size", 16)
 	editor_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	eh.add_child(editor_title)
+	toolbox_btn = Button.new()
+	toolbox_btn.text = "Outils ▾"
+	toolbox_btn.flat = true
+	toolbox_btn.tooltip_text = "Rappel des fonctions utilisables dans ce niveau (clique sur l'une d'elles pour l'insérer)"
+	toolbox_btn.pressed.connect(_toggle_toolbox)
+	eh.add_child(toolbox_btn)
 	var b_reset := Button.new()
 	b_reset.text = "↺ Code de départ"
 	b_reset.flat = true
@@ -431,9 +439,87 @@ func _build_editor_panel() -> void:
 	b_close.flat = true
 	b_close.pressed.connect(_close_editor)
 	eh.add_child(b_close)
+	toolbox = VBoxContainer.new()
+	toolbox.visible = false
+	ev.add_child(toolbox)
 	editor_holder = VBoxContainer.new()
 	editor_holder.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	ev.add_child(editor_holder)
+
+
+func _toggle_toolbox() -> void:
+	toolbox.visible = not toolbox.visible
+	toolbox_btn.text = "Outils ▴" if toolbox.visible else "Outils ▾"
+
+
+## Boîte à outils : les fonctions (et notions de syntaxe) disponibles dans le niveau en cours.
+## Un clic sur une fonction l'insère dans l'éditeur à la position du curseur.
+func _refresh_toolbox() -> void:
+	for c in toolbox.get_children():
+		toolbox.remove_child(c)
+		c.queue_free()
+	var lv: Dictionary = levels[cur]
+	var box := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.13, 0.15, 0.20)
+	sb.set_corner_radius_all(6)
+	sb.set_content_margin_all(8)
+	box.add_theme_stylebox_override("panel", sb)
+	toolbox.add_child(box)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 2)
+	box.add_child(col)
+	var items: Array = []  # [code à insérer, nom affiché, description]
+	for f in lv.get("api", []):
+		var doc: String = World.API_DOC[f]
+		var parts := doc.split(" : ", true, 1)
+		var args := "1" if World.API_ARITY[f] == 1 else ""
+		items.append([f + "(" + args + ")", String(parts[0]), String(parts[1]) if parts.size() > 1 else ""])
+	for b in lv.get("builtins", []):
+		if b == "print":
+			items.append(["print()", "print(...)", "affiche dans la fenêtre des sorties"])
+		elif b == "range":
+			items.append(["range()", "range(n)", "à utiliser avec for"])
+	for it in items:
+		var row := HBoxContainer.new()
+		var btn := Button.new()
+		btn.text = it[1]
+		btn.flat = true
+		btn.custom_minimum_size.x = 150
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0))
+		btn.add_theme_color_override("font_hover_color", Color(0.85, 0.95, 1.0))
+		btn.pressed.connect(_insert_snippet.bind(it[0]))
+		row.add_child(btn)
+		var d := Label.new()
+		d.text = it[2]
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		d.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		d.add_theme_font_size_override("font_size", 13)
+		d.add_theme_color_override("font_color", Color(0.78, 0.80, 0.86))
+		row.add_child(d)
+		col.add_child(row)
+	var names := {"boucle_while": "while", "conditions": "if / elif / else", "variables": "variables (n = 3)",
+		"arithmetique": "calculs (+ - * // %)", "boucle_for": "for ... in range(...)"}
+	var syn: Array = []
+	for k in lv.get("syntaxe", []):
+		if names.has(k):
+			syn.append(names[k])
+	if not syn.is_empty():
+		var sl := Label.new()
+		sl.text = "Syntaxe : " + ", ".join(syn)
+		sl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		sl.add_theme_font_size_override("font_size", 13)
+		sl.add_theme_color_override("font_color", Color(0.60, 0.63, 0.70))
+		col.add_child(sl)
+
+
+func _insert_snippet(code: String) -> void:
+	if open_robot == "" or running or not editors.has(open_robot):
+		return
+	var ed: TextEdit = editors[open_robot]
+	ed.insert_text_at_caret(code)
+	ed.grab_focus()
 
 
 ## Fenêtre des sorties, collée au bord droit : print, erreurs et remarques, avec le nom du robot.
@@ -727,7 +813,7 @@ func _help_text(tab: String) -> String:
 	match tab:
 		"interface":
 			t += "[b]L'entrepôt[/b]\nTon robot circule sur un rail. Des voleurs forcent une porte, volent un objet dans une salle puis essaient de ressortir avec : il doit les arrêter avant qu'ils ne sortent.\n\n"
-			t += "[b]Programmer un robot[/b]\nClique sur un robot : son éditeur s'ouvre à gauche. Chaque robot a son propre programme. ↺ remet le code de départ, ✕ ferme l'éditeur.\n\n"
+			t += "[b]Programmer un robot[/b]\nClique sur un robot : son éditeur s'ouvre à gauche. Chaque robot a son propre programme. « Outils » déplie un rappel des fonctions du niveau (un clic sur l'une d'elles l'insère dans ton code), ↺ remet le code de départ, ✕ ferme l'éditeur.\n\n"
 			t += "[b]Lancer[/b]\n▶ Lancer démarre l'attaque. La petite flèche ▲ permet de choisir une nouvelle attaque, ou de rejouer une ancienne (Attaque 1, 2, 3…) pour déboguer : un rejeu ne valide pas le niveau. ■ Arrêter interrompt la simulation.\n\n"
 			t += "[b]Vitesse[/b]\nLe bouton compteur règle la vitesse. La simulation est en pause tant qu'on n'a pas choisi.\n\n"
 			t += "[b]Réflexion[/b]\nSi le programme calcule trop longtemps avant d'agir, le robot perd son tour : un petit cerveau s'affiche au-dessus de lui.\n\n"
@@ -817,6 +903,7 @@ func _open_editor(id: String) -> void:
 		editors[k].visible = (k == id)
 		editors[k].editable = not running
 	editor_title.text = "Programme — %s" % _robot_name(id)
+	_refresh_toolbox()
 	editor_panel.visible = true
 
 
