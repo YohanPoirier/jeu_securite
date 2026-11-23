@@ -1,7 +1,7 @@
 {
  "id": "niveau_04",
  "titre": "Trois intrus",
- "enonce": "Trois intrus arrivent, un peu plus vite. La boucle for est maintenant disponible : for i in range(n): répète n fois. Les voleurs forcent une porte, prennent un objet dans une salle, puis essaient de ressortir par l'autre porte. vu() détecte un voleur sur ta case ou la case devant toi ; assommer() l'arrête.",
+ "enonce": "Trois intrus arrivent, plus lentement mais plus nombreux. La boucle for est maintenant disponible : for i in range(n): répète n fois. Les voleurs forcent une porte, prennent un objet dans une salle, puis essaient de ressortir. vu() détecte un voleur sur ta case ou la case devant toi ; assommer() l'arrête.",
  "longueur": [
   8,
   12
@@ -26,8 +26,8 @@
  "api": [
   "avancer",
   "reculer",
-  "longueur",
-  "position",
+  "debut_du_couloir",
+  "fin_du_couloir",
   "attendre",
   "vu",
   "assommer"
@@ -36,7 +36,7 @@
   "print",
   "range"
  ],
- "code_initial": "n = longueur() - 1\nwhile True:\n    for i in range(n):\n        avancer()\n    # à toi de jouer\n",
+ "code_initial": "while True:\n    # à toi de jouer : patrouille dans le couloir\n    pass\n",
  "robots": [
   {
    "id": "garde",
@@ -45,7 +45,7 @@
   }
  ],
  "solutions": {
-  "garde": "n = longueur() - 1\nwhile True:\n    for i in range(n):\n        if vu():\n            assommer()\n        avancer()\n    for i in range(n):\n        if vu():\n            assommer()\n        reculer()\n"
+  "garde": "while True:\n    while not fin_du_couloir():\n        if vu():\n            assommer()\n        avancer()\n    while not debut_du_couloir():\n        if vu():\n            assommer()\n        reculer()\n"
  },
  "salles": 3
 }

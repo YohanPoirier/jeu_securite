@@ -1,7 +1,7 @@
 {
  "id": "niveau_02",
- "titre": "Rail de longueur variable",
- "enonce": "La longueur du rail change à chaque essai (entre 6 et 10 cases) : impossible de compter les pas à l'avance ! Utilise les capteurs fin_de_rail() et debut_de_rail() avec while et not. Les voleurs forcent une porte, prennent un objet dans une salle, puis essaient de ressortir par l'autre porte. vu() détecte un voleur sur ta case ou la case devant toi ; assommer() l'arrête.",
+ "titre": "Couloir de longueur variable",
+ "enonce": "La longueur du couloir change à chaque essai (entre 6 et 10 cases) : impossible de compter les pas à l'avance ! Utilise les capteurs fin_du_couloir() et debut_du_couloir() avec while et not. Les voleurs forcent une porte, prennent un objet dans une salle, puis essaient de ressortir. vu() détecte un voleur sur ta case ou la case devant toi ; assommer() l'arrête.",
  "longueur": [
   6,
   10
@@ -22,15 +22,15 @@
  "api": [
   "avancer",
   "reculer",
-  "fin_de_rail",
-  "debut_de_rail",
+  "fin_du_couloir",
+  "debut_du_couloir",
   "vu",
   "assommer"
  ],
  "builtins": [
   "print"
  ],
- "code_initial": "while True:\n    while not fin_de_rail():\n        if vu():\n            assommer()\n        avancer()\n    # à toi : revenir au début du rail\n",
+ "code_initial": "while True:\n    while not fin_du_couloir():\n        if vu():\n            assommer()\n        avancer()\n    # à toi : revenir au début du couloir\n",
  "robots": [
   {
    "id": "garde",
@@ -39,7 +39,7 @@
   }
  ],
  "solutions": {
-  "garde": "while True:\n    while not fin_de_rail():\n        if vu():\n            assommer()\n        avancer()\n    while not debut_de_rail():\n        if vu():\n            assommer()\n        reculer()\n"
+  "garde": "while True:\n    while not fin_du_couloir():\n        if vu():\n            assommer()\n        avancer()\n    while not debut_du_couloir():\n        if vu():\n            assommer()\n        reculer()\n"
  },
  "salles": 2
 }

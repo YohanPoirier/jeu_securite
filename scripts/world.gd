@@ -1,5 +1,5 @@
 extends RefCounted
-## Le monde d'un niveau : un rail (le couloir) dans un entrepôt, un ou plusieurs robots, des voleurs.
+## Le monde d'un niveau : un couloir dans un entrepôt, un ou plusieurs robots, des voleurs.
 ## Un voleur arrive de l'extérieur par l'une des deux portes (aux extrémités du couloir), la force,
 ## entre, va vers l'objet le plus proche (sur une étagère, dans une salle), le prend, puis essaie
 ## de ressortir par la porte la plus proche. Simulation par ticks, déterministe pour une graine.
@@ -17,7 +17,7 @@ const PyOps = preload("res://scripts/pyops.gd")
 
 const API_ARITY := {
 	"avancer": 0, "reculer": 0, "attendre": 1,
-	"fin_de_rail": 0, "debut_de_rail": 0, "position": 0, "longueur": 0,
+	"fin_du_couloir": 0, "debut_du_couloir": 0,
 	"vu": 0, "assommer": 0,
 }
 
@@ -25,10 +25,8 @@ const API_DOC := {
 	"avancer": "avancer() : avance d'une case vers la droite (1 tick)",
 	"reculer": "reculer() : recule d'une case vers la gauche (1 tick)",
 	"attendre": "attendre(n) : ne fait rien pendant n ticks",
-	"fin_de_rail": "fin_de_rail() : True si le robot est tout à droite (instantané)",
-	"debut_de_rail": "debut_de_rail() : True si le robot est tout à gauche (instantané)",
-	"position": "position() : numéro de la case du robot, 0 = tout à gauche (instantané)",
-	"longueur": "longueur() : nombre de cases du rail (instantané)",
+	"fin_du_couloir": "fin_du_couloir() : True si le robot est tout à droite (instantané)",
+	"debut_du_couloir": "debut_du_couloir() : True si le robot est tout à gauche (instantané)",
 	"vu": "vu() : True si un voleur est sur ta case ou sur la case devant toi (instantané)",
 	"assommer": "assommer() : assomme le voleur sur ta case ou sur la case devant toi (1 tick)",
 }
@@ -115,14 +113,10 @@ func call_api(name: String, args: Array, rb: Dictionary):
 			if typeof(args[0]) != TYPE_INT or args[0] < 0:
 				return PyOps.err("ValueError : attendre(n) attend un nombre entier positif ou nul.")
 			return {"value": null, "cost": args[0]}
-		"fin_de_rail":
+		"fin_du_couloir":
 			return {"value": rb.pos == length - 1, "cost": 0}
-		"debut_de_rail":
+		"debut_du_couloir":
 			return {"value": rb.pos == 0, "cost": 0}
-		"position":
-			return {"value": rb.pos, "cost": 0}
-		"longueur":
-			return {"value": length, "cost": 0}
 		"vu":
 			return {"value": _sees_thief(rb), "cost": 0}
 		"assommer":

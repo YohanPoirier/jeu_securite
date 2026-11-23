@@ -812,7 +812,7 @@ func _help_text(tab: String) -> String:
 	var t := ""
 	match tab:
 		"interface":
-			t += "[b]L'entrepôt[/b]\nTon robot circule sur un rail. Des voleurs forcent une porte, volent un objet dans une salle puis essaient de ressortir avec : il doit les arrêter avant qu'ils ne sortent.\n\n"
+			t += "[b]L'entrepôt[/b]\nTon robot circule dans le couloir. Des voleurs forcent une porte, volent un objet dans une salle puis essaient de ressortir avec : il doit les arrêter avant qu'ils ne sortent.\n\n"
 			t += "[b]Programmer un robot[/b]\nClique sur un robot : son éditeur s'ouvre à gauche. Chaque robot a son propre programme. « Outils » déplie un rappel des fonctions du niveau (un clic sur l'une d'elles l'insère dans ton code), ↺ remet le code de départ, ✕ ferme l'éditeur.\n\n"
 			t += "[b]Lancer[/b]\n▶ Lancer démarre l'attaque. La petite flèche ▲ permet de choisir une nouvelle attaque, ou de rejouer une ancienne (Attaque 1, 2, 3…) pour déboguer : un rejeu ne valide pas le niveau. ■ Arrêter interrompt la simulation.\n\n"
 			t += "[b]Vitesse[/b]\nLe bouton compteur règle la vitesse. La simulation est en pause tant qu'on n'a pas choisi.\n\n"
@@ -824,7 +824,7 @@ func _help_text(tab: String) -> String:
 			if "boucle_while" in syn:
 				t += "[b]Répéter : while[/b]\n[code]while True:\n    avancer()[/code]\nTrue signifie « vrai, toujours » : le bloc indenté se répète sans fin.\n\n"
 			if "conditions" in syn:
-				var cond := "fin_de_rail()" if api.has("fin_de_rail") else "position() < longueur() - 1"
+				var cond := "fin_du_couloir()" if api.has("fin_du_couloir") else "vu()"
 				t += "[b]Décider : if / elif / else[/b]\n[code]if %s:\n    avancer()\nelse:\n    reculer()[/code]\nOn compare avec ==, !=, <, <=, >, >= et on combine avec and, or, not. elif signifie « sinon si ».\n\n" % cond
 			if "variables" in syn:
 				t += "[b]Variables[/b]\n[code]n = 3\nwhile n > 0:\n    avancer()\n    n = n - 1[/code]\nUne variable garde une valeur ; on peut la modifier.\n\n"

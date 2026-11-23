@@ -1,7 +1,7 @@
 {
  "id": "niveau_01",
  "titre": "Premier garde",
- "enonce": "Le rail fait 6 cases (0 à 5). Des voleurs arrivent de l'extérieur, forcent une porte, prennent un objet dans une salle puis essaient de ressortir. Ton robot regarde dans le sens où il va : vu() dit si un voleur est sur sa case ou la case devant lui, assommer() l'arrête. Le robot part de la case 0. Chaque action dure 1 tick. Écris une patrouille qui boucle indéfiniment.",
+ "enonce": "Le couloir fait 6 cases (0 à 5). Des voleurs arrivent de l'extérieur, forcent une porte, prennent un objet dans une salle puis essaient de ressortir. Ton robot regarde dans le sens où il va : vu() dit si un voleur est sur sa case ou la case devant lui, assommer() l'arrête. Le robot part de la case 0. Chaque action dure 1 tick. Écris une patrouille qui boucle indéfiniment.",
  "longueur": 6,
  "reflexion": 200,
  "intrus": {
