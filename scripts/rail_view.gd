@@ -17,6 +17,13 @@ var alpha := 1.0  # avancement dans le tick courant, de 0 à 1
 var hover := -1  # indice du robot survolé
 var inset_top := 0.0  # hauteur de la barre du haut (l'entrepôt se centre entre les deux barres)
 var inset_bottom := 0.0
+var inset_left := 0.0  # largeur masquée à gauche (éditeur) : la scène se centre dans l'espace restant
+var inset_right := 0.0  # largeur masquée à droite (sorties)
+var zoom := 1.0  # molette : zoom ; glisser : déplacer la scène
+var pan := Vector2.ZERO
+var _press_pos := Vector2.ZERO
+var _pressing := false
+var _dragging := false
 
 const ROWS := 11
 const RAIL_ROW := 5  # rangée du couloir
@@ -116,14 +123,49 @@ func _ready() -> void:
 func _layout() -> Dictionary:
 	var l: int = world.length if world != null else 6
 	var cols := l + 2 * MARGIN
+	var avail_w := size.x - inset_left - inset_right
 	var avail_h := size.y - inset_top - inset_bottom
-	var cell: float = minf(size.x / float(cols), avail_h / float(ROWS))
+	var cell: float = minf(avail_w / float(cols), avail_h / float(ROWS)) * zoom
 	return {
 		"l": l, "cols": cols, "cell": cell,
-		"x0": (size.x - cell * cols) / 2.0,
-		"y0": inset_top + (avail_h - cell * ROWS) / 2.0,
+		"x0": inset_left + (avail_w - cell * cols) / 2.0 + pan.x,
+		"y0": inset_top + (avail_h - cell * ROWS) / 2.0 + pan.y,
 		"k": MARGIN,
 	}
+
+
+## Retour à la vue d'origine (zoom 1, scène centrée).
+func reset_view() -> void:
+	zoom = 1.0
+	pan = Vector2.ZERO
+	queue_redraw()
+
+
+## Zoom autour d'un point de l'écran : la case sous le curseur ne bouge pas.
+func _zoom_at(point: Vector2, factor: float) -> void:
+	var lay := _layout()
+	var new_zoom := clampf(zoom * factor, 0.4, 5.0)
+	if is_equal_approx(new_zoom, zoom):
+		return
+	var u: Vector2 = (point - Vector2(lay.x0, lay.y0)) / float(lay.cell)  # point en cases
+	zoom = new_zoom
+	pan = Vector2.ZERO
+	var base := _layout()
+	pan = point - u * base.cell - Vector2(base.x0, base.y0)
+	_clamp_pan()
+	queue_redraw()
+
+
+## La scène ne peut pas quitter complètement l'écran.
+func _clamp_pan() -> void:
+	var lay := _layout()
+	var w: float = lay.cell * lay.cols
+	var h: float = lay.cell * ROWS
+	var avail_w := size.x - inset_left - inset_right
+	var avail_h := size.y - inset_top - inset_bottom
+	var lim_x := (avail_w + w) / 2.0 - 40.0
+	var lim_y := (avail_h + h) / 2.0 - 40.0
+	pan = Vector2(clampf(pan.x, -lim_x, lim_x), clampf(pan.y, -lim_y, lim_y))
 
 
 func _cell_rect(lay: Dictionary, col: int, row: int) -> Rect2:
@@ -229,6 +271,13 @@ func _gui_input(event: InputEvent) -> void:
 	var lay := _layout()
 	var slots := _slots()
 	if event is InputEventMouseMotion:
+		if _pressing:
+			if not _dragging and event.position.distance_to(_press_pos) > 5.0:
+				_dragging = true
+			if _dragging:
+				pan += event.relative
+				_clamp_pan()
+				queue_redraw()
 		var h := -1
 		for i in world.robots.size():
 			if _robot_rect(lay, world.robots[i], slots).grow(6.0).has_point(event.position):
@@ -237,12 +286,36 @@ func _gui_input(event: InputEvent) -> void:
 			hover = h
 			mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if h >= 0 else Control.CURSOR_ARROW
 			queue_redraw()
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
+		_zoom_at(event.position, 1.12)
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
+		_zoom_at(event.position, 1.0 / 1.12)
+	elif event is InputEventMagnifyGesture:
+		_zoom_at(event.position, event.factor)
+	elif event is InputEventPanGesture:
+		pan -= event.delta * 8.0
+		_clamp_pan()
+		queue_redraw()
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		for i in world.robots.size():
 			if _robot_rect(lay, world.robots[i], slots).grow(6.0).has_point(event.position):
 				robot_clicked.emit(world.robots[i].id)
 				return
-		background_clicked.emit()
+		if event.double_click:
+			reset_view()
+			return
+		_pressing = true  # clic sur le fond : un simple clic ferme l'éditeur, un glissé déplace la scène
+		_dragging = false
+		_press_pos = event.position
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		if _pressing and not _dragging:
+			background_clicked.emit()
+		_pressing = false
+		_dragging = false
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
+		_pressing = event.pressed
+		_dragging = event.pressed
+		_press_pos = event.position
 
 
 # ---------- petits outils de dessin ----------

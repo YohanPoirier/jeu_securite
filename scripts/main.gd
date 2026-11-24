@@ -14,7 +14,7 @@ const RailView = preload("res://scripts/rail_view.gd")
 const SAVE_PATH := "user://progression.cfg"
 const TOP_H := 40
 const BOTTOM_H := 64
-const SPEEDS := [["Lent (×½)", 3], ["Normal (×1)", 6], ["Rapide (×2)", 12], ["Très rapide (×4)", 24]]
+const SPEEDS := [["Lent (2 s par tick)", 0.5], ["Posé (1 s par tick)", 1.0], ["Normal (×1)", 6.0], ["Rapide (×2)", 12.0], ["Très rapide (×4)", 24.0]]
 const GREEN := Color(0.16, 0.50, 0.28)
 const ATTACK_TIP := "Attaque à lancer : une nouvelle, ou une ancienne à rejouer pour déboguer"
 const ERROR_LINE := Color(0.9, 0.25, 0.25, 0.30)
@@ -35,7 +35,7 @@ var timer := 0.0
 var editors: Dictionary = {}  # id du robot -> CodeEdit
 var marks: Dictionary = {}  # id du robot -> ligne surlignée
 var open_robot := ""
-var tps := 6  # ticks par seconde
+var tps := 6.0  # ticks par seconde
 var sim_paused := false  # vrai tant que le choix de vitesse est ouvert
 var attacks: Dictionary = {}  # id du niveau -> liste des attaques déjà jouées (n° 1, 2, 3...)
 var attack_choice := -1  # -1 : nouvelle attaque ; k : rejouer l'attaque n° k+1
@@ -654,6 +654,7 @@ func _warning_icon() -> Texture2D:
 
 func _set_out(show: bool) -> void:
 	out_panel.visible = show
+	_update_view_insets()
 	if show:
 		_reset_out_count()
 
@@ -723,6 +724,11 @@ func _build_modal() -> void:
 	modal_box = VBoxContainer.new()
 	modal_box.add_theme_constant_override("separation", 12)
 	panel.add_child(modal_box)
+	# un clic en dehors de la fenêtre (ou la touche Échap) la ferme, sauf pour la confirmation de remise à zéro
+	modal.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			if not panel.get_global_rect().has_point(ev.global_position):
+				_close_modal())
 
 
 func _modal_button(text: String, cb: Callable) -> Button:
@@ -845,6 +851,12 @@ func _show_modal(kind: String) -> void:
 	modal.visible = true
 
 
+func _unhandled_key_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE and modal.visible:
+		_close_modal()
+		get_viewport().set_input_as_handled()
+
+
 func _close_modal() -> void:
 	modal_kind = ""
 	modal.visible = false
@@ -855,6 +867,7 @@ func _restart_level() -> void:
 	console.clear()
 	_reset_out_count()
 	out_panel.visible = false
+	_update_view_insets()
 	attack_choice = -1
 	_rebuild_attack_menu()
 	var lv_view: Dictionary = levels[cur].duplicate()
@@ -929,6 +942,8 @@ func _select_level(idx: int) -> void:
 	marks.clear()
 	open_robot = ""
 	editor_panel.visible = false
+	view.reset_view()
+	_update_view_insets()
 	for spec in lv.get("robots", [{"id": "robot", "nom": "Robot"}]):
 		var e := _make_editor()
 		e.text = codes.get(_key(spec.id), lv.code_initial)
@@ -938,6 +953,7 @@ func _select_level(idx: int) -> void:
 	console.clear()
 	_reset_out_count()
 	out_panel.visible = false
+	_update_view_insets()
 	attack_choice = -1
 	_rebuild_attack_menu()
 	var lv_view: Dictionary = lv.duplicate()
@@ -958,6 +974,13 @@ func _robot_name(id: String) -> String:
 	return id
 
 
+## L'entrepôt se centre dans l'espace laissé libre par l'éditeur et par les sorties.
+func _update_view_insets() -> void:
+	view.inset_left = float(EDITOR_W) if editor_panel.visible else 0.0
+	view.inset_right = float(OUT_W) if out_panel.visible else 0.0
+	view.queue_redraw()
+
+
 func _open_editor(id: String) -> void:
 	if not editors.has(id):
 		return
@@ -970,6 +993,7 @@ func _open_editor(id: String) -> void:
 	_refresh_toolbox()
 	_update_memory()
 	editor_panel.visible = true
+	_update_view_insets()
 
 
 ## Mémoire du robot : « x caractères restants » (rouge si on dépasse). Les commentaires ne comptent pas.
@@ -990,6 +1014,7 @@ func _update_memory() -> void:
 func _close_editor() -> void:
 	open_robot = ""
 	editor_panel.visible = false
+	_update_view_insets()
 
 
 func _on_reset_code() -> void:
