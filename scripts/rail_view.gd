@@ -340,6 +340,11 @@ func _draw_hud() -> void:
 					only = [0, 3]  # case partagée avec un robot : voleur sur l'autre diagonale
 			_marker(_cell_rect(lay, lay.k + it.x, RAIL_ROW + it.ry), Color(1.0, 0.40, 0.32, 0.65 if only.size() < 4 else 0.50), only)
 	for rb in world.robots:
+		if not rb.hs:  # petit halo lumineux autour du robot, par-dessus lui comme avant
+			var hc: Vector2 = _robot_pos(lay, rb, slots)
+			for hi in 8:
+				_hud.draw_circle(hc, cell * (0.30 - 0.025 * hi) * _slot(slots, "r" + str(rb.id)).sc, Color(1.0, 0.92, 0.6, 0.075))
+	for rb in world.robots:
 		if not rb.hs:
 			var shared := false
 			for it2 in world.intruders:
