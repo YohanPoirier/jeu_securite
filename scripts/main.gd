@@ -76,6 +76,8 @@ var cam_btn: Button
 var cam_follow := true  # caméra automatique : suit le robot dont l'éditeur est ouvert
 var tex_cam_on: Texture2D
 var tex_cam_off: Texture2D
+var tex_cam_paused: Texture2D
+var cam_paused := false  # le joueur a déplacé la vue : suivi suspendu jusqu'à la prochaine ouverture de l'éditeur
 var tex_tb_open: Texture2D
 var tex_tb_closed: Texture2D
 const TOOLBOX_BG := Color(0.13, 0.15, 0.20)
@@ -169,7 +171,7 @@ func _build_ui() -> void:
 	view.robot_clicked.connect(_open_editor)
 	view.background_clicked.connect(_close_editor)
 	view.view_moved.connect(func():
-		cam_follow = false
+		cam_paused = true
 		_update_follow())
 	add_child(view)
 
@@ -451,21 +453,36 @@ func _build_editor_panel() -> void:
 	editor_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	eh.add_child(editor_title)
 	tex_cam_on = _svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
-<path d="M8 6.5l1.2-2h5.6l1.2 2z" fill="#b8c4d8"/>
-<rect x="2.5" y="6.5" width="19" height="13" rx="2.2" fill="#b8c4d8"/>
-<circle cx="12" cy="13" r="4.2" fill="#1a1d27"/>
-<circle cx="12" cy="13" r="2.4" fill="#6b7689"/>
-<circle cx="18.6" cy="9.4" r="1" fill="#f5a524"/></svg>""")
+<path d="M2 9.5a2 2 0 0 1 2-2h9.5a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" fill="#b8c4d8"/>
+<path d="M16.5 11.5L22 8v9l-5.5-3.5z" fill="#b8c4d8"/>
+<circle cx="6.2" cy="6" r="3" fill="#b8c4d8"/>
+<circle cx="12" cy="6" r="3" fill="#b8c4d8"/>
+<circle cx="6.2" cy="6" r="1.2" fill="#1a1d27"/>
+<circle cx="12" cy="6" r="1.2" fill="#1a1d27"/></svg>""")
+	tex_cam_paused = _svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
+<g opacity="0.55"><path d="M2 9.5a2 2 0 0 1 2-2h9.5a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" fill="#b8c4d8"/>
+<path d="M16.5 11.5L22 8v9l-5.5-3.5z" fill="#b8c4d8"/>
+<circle cx="6.2" cy="6" r="3" fill="#b8c4d8"/>
+<circle cx="12" cy="6" r="3" fill="#b8c4d8"/>
+<circle cx="6.2" cy="6" r="1.2" fill="#1a1d27"/>
+<circle cx="12" cy="6" r="1.2" fill="#1a1d27"/></g>
+<path d="M3 3L21 21" stroke="#1a1d27" stroke-width="4.6" stroke-linecap="round"/>
+<path d="M3 3L21 21" stroke="#f5a524" stroke-width="2.4" stroke-linecap="round"/></svg>""")
 	tex_cam_off = _svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
-<g opacity="0.55"><path d="M8 6.5l1.2-2h5.6l1.2 2z" fill="#b8c4d8"/>
-<rect x="2.5" y="6.5" width="19" height="13" rx="2.2" fill="#b8c4d8"/>
-<circle cx="12" cy="13" r="4.2" fill="#1a1d27"/>
-<circle cx="12" cy="13" r="2.4" fill="#6b7689"/></g>
-<path d="M3.5 3.5L20.5 21" stroke="#1a1d27" stroke-width="4.6" stroke-linecap="round"/>
-<path d="M3.5 3.5L20.5 21" stroke="#e5534b" stroke-width="2.4" stroke-linecap="round"/></svg>""")
+<g opacity="0.55"><path d="M2 9.5a2 2 0 0 1 2-2h9.5a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" fill="#b8c4d8"/>
+<path d="M16.5 11.5L22 8v9l-5.5-3.5z" fill="#b8c4d8"/>
+<circle cx="6.2" cy="6" r="3" fill="#b8c4d8"/>
+<circle cx="12" cy="6" r="3" fill="#b8c4d8"/>
+<circle cx="6.2" cy="6" r="1.2" fill="#1a1d27"/>
+<circle cx="12" cy="6" r="1.2" fill="#1a1d27"/></g>
+<path d="M3 3L21 21" stroke="#1a1d27" stroke-width="4.6" stroke-linecap="round"/>
+<path d="M3 3L21 21" stroke="#e5534b" stroke-width="2.4" stroke-linecap="round"/></svg>""")
 	cam_btn = _icon_button(tex_cam_on, "")
 	cam_btn.pressed.connect(func():
-		cam_follow = not cam_follow
+		if cam_paused:
+			cam_paused = false  # reprendre le suivi tout de suite
+		else:
+			cam_follow = not cam_follow  # préférence : suivi activé / désactivé
 		_update_follow())
 	eh.add_child(cam_btn)
 	tex_tb_closed = _svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
@@ -1062,12 +1079,18 @@ func _update_view_insets() -> void:
 
 ## Caméra automatique : tant que l'éditeur d'un robot est ouvert, la vue est centrée sur lui et le suit.
 func _update_follow() -> void:
-	view.set_follow(open_robot if (cam_follow and editor_panel.visible and open_robot != "") else "")
+	view.set_follow(open_robot if (cam_follow and not cam_paused and editor_panel.visible and open_robot != "") else "")
 	if cam_btn == null:
 		return
-	cam_btn.icon = tex_cam_on if cam_follow else tex_cam_off
-	cam_btn.tooltip_text = ("Caméra automatique activée : la vue suit le robot (cliquer pour désactiver)" if cam_follow
-		else "Caméra automatique désactivée (cliquer pour que la vue suive le robot)")
+	if not cam_follow:
+		cam_btn.icon = tex_cam_off
+		cam_btn.tooltip_text = "Caméra automatique désactivée (cliquer pour que la vue suive le robot)"
+	elif cam_paused:
+		cam_btn.icon = tex_cam_paused
+		cam_btn.tooltip_text = "Caméra automatique suspendue car tu as déplacé la vue (cliquer pour reprendre le suivi ; il reprend aussi à la réouverture de l'éditeur)"
+	else:
+		cam_btn.icon = tex_cam_on
+		cam_btn.tooltip_text = "Caméra automatique : la vue suit le robot (cliquer pour désactiver)"
 
 
 func _open_editor(id: String) -> void:
@@ -1075,6 +1098,7 @@ func _open_editor(id: String) -> void:
 		return
 	_close_modal()
 	open_robot = id
+	cam_paused = false  # la vue se remet à suivre le robot dès qu'on (ré)ouvre un éditeur
 	for k in editors:
 		editors[k].visible = (k == id)
 		editors[k].editable = not running
