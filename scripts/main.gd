@@ -433,7 +433,8 @@ func _build_editor_panel() -> void:
 <rect x="10.5" y="11" width="3" height="4" rx="0.8" fill="#f5a524"/></svg>""")
 	tex_tb_open = _svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
 <rect x="4" y="3" width="16" height="7" rx="2" fill="#b8c4d8"/>
-<rect x="3" y="12.2" width="18" height="7.8" rx="2" fill="#b8c4d8"/>
+<rect x="6" y="4.8" width="12" height="3.4" rx="1" fill="#6b7689"/>
+<path d="M3 12.2h18V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="#b8c4d8"/>
 <rect x="10.5" y="12.2" width="3" height="3.4" rx="0.8" fill="#f5a524"/></svg>""")
 	toolbox_btn = _icon_button(tex_tb_closed,
 		"Boîte à outils : rappel des fonctions du niveau (un clic sur l'une d'elles l'insère)")
