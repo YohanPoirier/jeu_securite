@@ -14,7 +14,7 @@ const RailView = preload("res://scripts/rail_view.gd")
 const SAVE_PATH := "user://progression.cfg"
 const TOP_H := 40
 const BOTTOM_H := 64
-const SPEEDS := [["Lent (2 s par tick)", 0.5, "×0,5"], ["Normal (1 s par tick)", 1.0, "×1"], ["Rapide (0,5 s par tick)", 2.0, "×2"], ["Flash (0,2 s par tick)", 5.0, "×5"]]
+const SPEEDS := [["Lent (2 s par tick)", 0.5, "×0,5"], ["Normal (1 s par tick)", 1.0, "×1"], ["Rapide (0,5 s par tick)", 2.0, "×2"], ["Flash (0,1 s par tick)", 10.0, "×10"]]
 const GREEN := Color(0.16, 0.50, 0.28)
 const ATTACK_TIP := "Attaque à lancer : une nouvelle, ou une ancienne à rejouer pour déboguer"
 const ERROR_LINE := Color(0.9, 0.25, 0.25, 0.30)
@@ -390,6 +390,8 @@ func _gauge_icon() -> Texture2D:
 
 func _on_speed_chosen(id: int) -> void:
 	tps = SPEEDS[id][1]
+	view.move_fraction = 0.55 if tps <= 1.0 else 1.0  # rapide : glissement continu sur tout le tick
+	view.move_linear = tps > 1.0
 	for i in SPEEDS.size():
 		speed_menu.set_item_checked(i, i == id)
 	speed_btn.tooltip_text = "Vitesse : %s" % String(SPEEDS[id][0])

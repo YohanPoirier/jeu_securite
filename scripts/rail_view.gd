@@ -34,6 +34,9 @@ const RAIL_ROW := 5  # rangée du couloir
 const B_EXTRA := 3  # rangées ajoutées en dessous quand le niveau a un second couloir (mur, couloir, mur)
 const MARGIN := 3  # colonnes avant la première case du rail : pelouse, pelouse, mur et porte
 const MOVE_FRACTION := 0.55  # part du tick consacrée au glissement ; le reste est la pause
+# aux vitesses rapides, le robot glisse pendant tout le tick, à vitesse constante (pas d'à-coups)
+var move_fraction := MOVE_FRACTION
+var move_linear := false
 
 const C_GRASS := Color(0.20, 0.38, 0.22)
 const C_FLOOR := Color(0.43, 0.44, 0.48)
@@ -234,8 +237,9 @@ func _cell_rect(lay: Dictionary, col: int, row: int) -> Rect2:
 
 ## Position fluide (en cases) entre l'ancienne et la nouvelle case : glisse puis pause.
 func _smooth(prev: int, pos: int) -> float:
-	var u := clampf(alpha / MOVE_FRACTION, 0.0, 1.0)
-	u = u * u * (3.0 - 2.0 * u)  # départ et arrivée en douceur
+	var u := clampf(alpha / move_fraction, 0.0, 1.0)
+	if not move_linear:
+		u = u * u * (3.0 - 2.0 * u)  # départ et arrivée en douceur
 	return lerpf(float(prev), float(pos), u)
 
 
@@ -275,14 +279,14 @@ func _thief_cell(it: Dictionary) -> Vector2i:
 
 ## Case du marqueur d'un robot : elle change à la moitié de son déplacement.
 func _robot_cell(rb: Dictionary) -> Vector2i:
-	if clampf(alpha / MOVE_FRACTION, 0.0, 1.0) >= 0.5:
+	if clampf(alpha / move_fraction, 0.0, 1.0) >= 0.5:
 		return Vector2i(rb.pos, rb.ry)
 	return Vector2i(rb.prev, rb.pry)
 
 
 func _smooth_t() -> float:
-	var u := clampf(alpha / MOVE_FRACTION, 0.0, 1.0)
-	return u * u * (3.0 - 2.0 * u)
+	var u := clampf(alpha / move_fraction, 0.0, 1.0)
+	return u if move_linear else u * u * (3.0 - 2.0 * u)
 
 
 func _robot_center(lay: Dictionary, rb: Dictionary) -> Vector2:
@@ -765,7 +769,7 @@ func _draw_shelf(rc: Rect2, c: int, r: int, stolen := false) -> void:
 func _bob(prev: int, pos: int, cell: float) -> float:
 	if prev == pos:
 		return 0.0
-	var u := clampf(alpha / MOVE_FRACTION, 0.0, 1.0)
+	var u := clampf(alpha / move_fraction, 0.0, 1.0)
 	if u >= 1.0:
 		return 0.0
 	return -absf(sin(u * PI * 2.0)) * cell * 0.04
