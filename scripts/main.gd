@@ -235,6 +235,13 @@ func _build_menu() -> void:
 	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	top.custom_minimum_size = Vector2(0, TOP_H)
 	add_child(top)
+	# nom du niveau, centré sur toute la largeur de la barre (derrière les boutons, sans capter les clics)
+	title_label = Label.new()
+	title_label.add_theme_font_size_override("font_size", 16)
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top.add_child(title_label)
 	var th := HBoxContainer.new()
 	th.add_theme_constant_override("separation", 12)
 	top.add_child(th)
@@ -242,9 +249,6 @@ func _build_menu() -> void:
 	menu_btn.text = "☰ Menu"
 	menu_btn.pressed.connect(func(): _show_modal("menu"))
 	th.add_child(menu_btn)
-	title_label = Label.new()
-	title_label.add_theme_font_size_override("font_size", 16)
-	th.add_child(title_label)
 	th.add_child(_spacer())
 	out_btn = Button.new()
 	out_btn.text = "▤ Sorties"
@@ -1154,7 +1158,7 @@ func _select_level(idx: int) -> void:
 	_stop()
 	cur = idx
 	var lv: Dictionary = levels[cur]
-	title_label.text = "%s — %s" % [_tag(cur), lv.titre]
+	title_label.text = "Tutoriel" if String(lv.get("etiquette", "")).begins_with("Tuto") else _tag(cur)
 	# un éditeur par robot
 	for id in editors:
 		editors[id].queue_free()
