@@ -467,7 +467,7 @@ func _build_editor_panel() -> void:
 <circle cx="6.2" cy="6" r="1.2" fill="#1a1d27"/>
 <circle cx="12" cy="6" r="1.2" fill="#1a1d27"/></g>
 <path d="M3 3L21 21" stroke="#1a1d27" stroke-width="4.6" stroke-linecap="round"/>
-<path d="M3 3L21 21" stroke="#f5a524" stroke-width="2.4" stroke-linecap="round"/></svg>""")
+<path d="M3 3L21 21" stroke="#f5a524" stroke-width="2.4" stroke-linecap="butt" stroke-dasharray="3.4 2.6"/></svg>""")
 	tex_cam_off = _svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
 <g opacity="0.55"><path d="M2 9.5a2 2 0 0 1 2-2h9.5a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" fill="#b8c4d8"/>
 <path d="M16.5 11.5L22 8v9l-5.5-3.5z" fill="#b8c4d8"/>
