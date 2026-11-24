@@ -432,6 +432,8 @@ func _build_editor_panel() -> void:
 <rect x="3" y="12.2" width="18" height="1.6" fill="#1a1d27"/>
 <rect x="10.5" y="11" width="3" height="4" rx="0.8" fill="#f5a524"/></svg>""")
 	tex_tb_open = _svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
+<rect x="5.5" y="11" width="3" height="3.5" rx="0.6" fill="#6b7689"/>
+<rect x="15.5" y="11" width="3" height="3.5" rx="0.6" fill="#6b7689"/>
 <rect x="3" y="3" width="18" height="9" rx="2" fill="#b8c4d8"/>
 <rect x="5" y="5" width="14" height="5" rx="1" fill="#6b7689"/>
 <path d="M3 13.8h18V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="#b8c4d8"/>
