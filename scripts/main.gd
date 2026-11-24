@@ -9,6 +9,7 @@ extends Control
 
 const Interp = preload("res://scripts/interpreter.gd")
 const World = preload("res://scripts/world.gd")
+const TitleScreen = preload("res://scripts/title_screen.gd")
 const RailView = preload("res://scripts/rail_view.gd")
 
 const SAVE_PATH := "user://progression.cfg"
@@ -72,6 +73,7 @@ var out_panel: PanelContainer
 var editor_panel: PanelContainer
 var toolbox: VBoxContainer  # boîte à outils : rappel des fonctions utilisables (repliable)
 var toolbox_btn: Button
+var title: Control  # écran d'accueil
 var cam_btn: Button
 var cam_follow := true  # caméra automatique : suit le robot dont l'éditeur est ouvert
 var tex_cam_on: Texture2D
@@ -92,6 +94,49 @@ func _ready() -> void:
 	_load_progress()
 	_build_ui()
 	_select_level(mini(unlocked - 1, levels.size() - 1))
+	_build_title()
+	_show_title()
+
+
+# ---------- écran d'accueil ----------
+
+func _build_title() -> void:
+	title = TitleScreen.new()
+	add_child(title)
+	move_child(modal, -1)  # les fenêtres (choix du niveau, confirmation) s'ouvrent par-dessus l'accueil
+	title.new_game.connect(func():
+		if FileAccess.file_exists(SAVE_PATH):
+			_show_modal("nouvelle_partie")
+		else:
+			_start_new_game())
+	title.load_game.connect(func():
+		_hide_title()
+		_select_level(mini(unlocked - 1, levels.size() - 1)))
+	title.choose_level.connect(func(): _show_modal("principal"))
+	title.quit_game.connect(func(): get_tree().quit())
+
+
+func _show_title() -> void:
+	_save_editors()
+	_stop()
+	_close_modal()
+	_close_editor()
+	title.refresh(FileAccess.file_exists(SAVE_PATH))
+	title.visible = true
+
+
+func _hide_title() -> void:
+	if title != null:
+		title.visible = false
+
+
+## Nouvelle partie : la progression et les programmes enregistrés sont effacés, on commence au tuto.
+func _start_new_game() -> void:
+	unlocked = 1
+	codes.clear()
+	_save_progress()
+	_hide_title()
+	_select_level(0)
 
 
 # ---------- données ----------
@@ -935,7 +980,7 @@ func _show_modal(kind: String) -> void:
 			_modal_title("Menu", true)
 			modal_box.add_child(_modal_button("Recommencer le niveau", _restart_level))
 			modal_box.add_child(_modal_button("Aide", func(): _show_modal("aide")))
-			modal_box.add_child(_modal_button("Retour au menu principal", func(): _show_modal("principal")))
+			modal_box.add_child(_modal_button("Retour à l'accueil", _show_title))
 		"aide":
 			_modal_title("Aide", true)
 			var tabs := HBoxContainer.new()
@@ -982,11 +1027,16 @@ func _show_modal(kind: String) -> void:
 				modal_box.add_child(_modal_button("Suite" if levels[cur + 1].has("etiquette") else "Niveau suivant", func(): _select_level(cur + 1)))
 			if not _modal_locked():
 				modal_box.add_child(_modal_button("Fermer", _close_modal))
+		"nouvelle_partie":
+			_modal_title("Nouvelle partie", true)
+			var warn := _label("Ta partie en cours (niveaux débloqués et programmes) sera effacée. Cette action est définitive.")
+			warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			warn.custom_minimum_size = Vector2(MODAL_W - 20, 0)
+			modal_box.add_child(warn)
+			modal_box.add_child(_modal_button("Effacer et commencer", _start_new_game))
+			modal_box.add_child(_modal_button("Annuler", _close_modal))
 		"principal":
-			var t := _label("Garde Robot")
-			t.add_theme_font_size_override("font_size", 26)
-			t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			modal_box.add_child(t)
+			_modal_title("Choisir un niveau", true)
 			# la liste défile si la fenêtre est trop petite pour tous les niveaux
 			var lsc := ScrollContainer.new()
 			lsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -1099,6 +1149,7 @@ func _save_editors() -> void:
 func _select_level(idx: int) -> void:
 	if levels.is_empty():
 		return
+	_hide_title()
 	_save_editors()
 	_stop()
 	cur = idx
