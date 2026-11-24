@@ -79,8 +79,8 @@ func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 			"pwf": Vector2i(x0, 0), "pwt": Vector2i(x0, 0), "pws": 0,
 		})
 	# voleurs « figés » (tuto) : déjà là au départ, immobiles jusqu'à ce qu'on les assomme.
-	# Avec "alterne", ils ne sont là qu'aux attaques paires (les impaires n'ont aucun voleur).
-	if not (cfg.get("alterne", false) and num % 2 == 1):
+	# Avec "alterne", ils ne sont là qu'aux attaques impaires (les paires n'ont aucun voleur).
+	if not (cfg.get("alterne", false) and num % 2 == 0):
 		for cx in cfg.get("fixes", []):
 			intruders.append({
 				"spawn": 0, "side": 1, "dir": 1, "periode": periode, "t0": 0, "forcer": forcer,

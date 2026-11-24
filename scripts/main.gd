@@ -40,6 +40,8 @@ var sim_paused := false  # vrai tant que le choix de vitesse est ouvert
 var attacks: Dictionary = {}  # id du niveau -> liste des attaques déjà jouées (n° 1, 2, 3...)
 var attack_choice := -1  # -1 : nouvelle attaque ; k : rejouer l'attaque n° k+1
 var run_replay := false
+var run_number := 0  # n° de l'attaque en cours
+var cases_won: Dictionary = {}  # id du niveau -> cas déjà gagnés (missions à deux cas : avec / sans voleur)
 var out_count := 0  # sorties non lues (pastille rouge), plafonnée à 50
 var out_badge: PanelContainer
 var warn_icon: Texture2D
@@ -818,7 +820,7 @@ func _show_modal(kind: String) -> void:
 			rt.custom_minimum_size = Vector2(0, 60)
 			rt.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			modal_box.add_child(rt)
-			if result_info.title == "Échec":  # la cause de la défaite, pas pour une victoire
+			if result_info.title == "Échec" or result_info.get("partial", false):  # la cause de la défaite, ou ce qu'il reste à valider
 				var body := _label(String(result_info.text))
 				body.add_theme_font_size_override("font_size", 17)
 				body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1039,6 +1041,7 @@ func _on_run() -> void:
 		_rebuild_attack_menu()
 	var lv_run: Dictionary = lv.duplicate()
 	lv_run["numero"] = number  # n° de l'attaque : certaines missions du tuto en dépendent
+	run_number = number
 	world = World.new(lv_run, compiled, attack)
 	view.world = world
 	view.alpha = 1.0
@@ -1113,7 +1116,19 @@ func _finish() -> void:
 	if world.status == "victoire":
 		info["title"] = "Victoire !"
 		info["color"] = Color.LIGHT_GREEN
-		if not run_replay:
+		var lv_f: Dictionary = levels[cur]
+		var two_cases: bool = lv_f.get("intrus", {}).get("alterne", false)
+		var partial := false
+		if two_cases and not run_replay:
+			var won: Array = cases_won.get(lv_f.id, [])
+			if not won.has(run_number % 2):
+				won.append(run_number % 2)
+			cases_won[lv_f.id] = won
+			partial = won.size() < 2
+			if partial:
+				info["partial"] = true
+				info["text"] = "Il reste un cas à valider : lance une nouvelle attaque (un voleur sera là, ou pas)."
+		if not run_replay and not partial:
 			if cur + 1 == unlocked and unlocked < levels.size():
 				unlocked += 1
 				info["unlocked"] = unlocked

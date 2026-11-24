@@ -300,15 +300,18 @@ func test_tuto() -> void:
 	ok(I.chars_used(t4.solutions.garde) <= int(t4.memoire), "tuto/4 la boucle for tient", str(I.chars_used(t4.solutions.garde)))
 	var rej := I.compile(by_hand, t4.syntaxe, t4.api, t4.builtins)
 	ok(rej.ok, "tuto/4 syntaxe à la main acceptée par le jeu (la limite est celle de la mémoire)")
-	# tuto 5 : assommer sans regarder échoue aux attaques impaires (pas de voleur), passe aux paires
+	# tuto 5 : les attaques impaires ont un voleur, les paires aucun
 	var t5 := load_level("tuto_5")
 	var naive := compile_all(t5, {"garde": "assommer()\n"})
+	var empty := compile_all(t5, {"garde": "# rien\n"})
 	var odd := t5.duplicate()
 	odd["numero"] = 1
 	var even := t5.duplicate()
 	even["numero"] = 2
-	ok(play(odd, naive, 1).status == "defaite", "tuto/5 assommer à vide : panne, défaite")
-	ok(play(even, naive, 1).status == "victoire", "tuto/5 voleur présent : assommer seul suffit")
+	ok(play(odd, naive, 1).status == "victoire", "tuto/5 voleur présent : assommer seul suffit")
+	ok(play(even, naive, 1).status == "defaite", "tuto/5 assommer à vide : panne, défaite")
+	ok(play(odd, empty, 1).status == "defaite", "tuto/5 ne rien faire ne bat pas le voleur")
+	ok(play(even, empty, 1).status == "victoire", "tuto/5 sans voleur, ne rien faire suffit (mais il faut valider les deux cas)")
 	var good := compile_all(t5, t5.solutions)
 	ok(play(odd, good, 1).status == "victoire" and play(even, good, 1).status == "victoire", "tuto/5 le if gagne dans les deux cas")
 	# assommer dans le vide met le robot hors service
