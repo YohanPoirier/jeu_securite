@@ -1,0 +1,35 @@
+{
+ "id": "tuto_3",
+ "etiquette": "Tuto 3/6",
+ "titre": "Plusieurs pas",
+ "enonce": "Le voleur est tout au fond du couloir, à 6 cases. Écris autant de fois avancer() qu'il faut de pas, puis assomme. La mémoire du robot est limitée : regarde le compteur de caractères en bas de l'éditeur.",
+ "longueur": 8,
+ "salles": 1,
+ "reflexion": 200,
+ "duree": 22,
+ "panne_defaite": true,
+ "intrus": {
+  "nombre": 0,
+  "fixes": [
+   7
+  ]
+ },
+ "syntaxe": [],
+ "api": [
+  "avancer",
+  "assommer"
+ ],
+ "builtins": [],
+ "code_initial": "# Les lignes qui commencent par # sont des commentaires : elles ne comptent pas dans la mémoire.\n",
+ "robots": [
+  {
+   "id": "garde",
+   "nom": "Garde",
+   "depart": 0
+  }
+ ],
+ "solutions": {
+  "garde": "avancer()\navancer()\navancer()\navancer()\navancer()\navancer()\nassommer()\n"
+ },
+ "memoire": 130
+}

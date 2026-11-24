@@ -20,7 +20,8 @@
   "boucle_while",
   "conditions",
   "variables",
-  "arithmetique"
+  "arithmetique",
+  "boucle_for"
  ],
  "api": [
   "avancer",
@@ -30,7 +31,8 @@
   "assommer"
  ],
  "builtins": [
-  "print"
+  "print",
+  "range"
  ],
  "code_initial": "while True:\n    # à toi de jouer\n    pass\n",
  "robots": [

@@ -23,3 +23,26 @@ static func compile(src: String, syntaxe: Array, api: Array, builtins: Array) ->
 		return {"ok": false, "line": errs[0].line, "msg": errs[0].msg}
 	var cp := Compiler.new()
 	return {"ok": true, "code": cp.compile(pr.ast)}
+
+
+## Mémoire du robot : nombre de caractères du programme, commentaires et lignes vides exclus
+## (l'indentation, elle, compte). Le niveau peut fixer une limite (champ "memoire").
+static func chars_used(src: String) -> int:
+	var lines: Array = []
+	for raw in src.split("\n"):
+		var line: String = raw
+		var in_str := ""
+		for i in line.length():
+			var ch := line[i]
+			if in_str != "":
+				if ch == in_str:
+					in_str = ""
+			elif ch == "\"" or ch == "'":
+				in_str = ch
+			elif ch == "#":
+				line = line.substr(0, i)
+				break
+		line = line.rstrip(" \t\r")
+		if line.strip_edges() != "":
+			lines.append(line)
+	return "\n".join(lines).length()

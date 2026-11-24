@@ -32,8 +32,8 @@ func _need(feature: String, label: String, line: int) -> void:
 	if syntaxe.has(feature):
 		return
 	var info: Dictionary = FEATURES[feature]
-	errs.append({"line": line, "msg": "%s n'est pas encore disponible à ce niveau. Au niveau %d, tu débloqueras : %s." % [
-		label, info.niveau, info.nom]})
+	errs.append({"line": line, "msg": "%s n'est pas encore disponible ici. Tu débloqueras plus loin : %s." % [
+		label, info.nom]})
 
 
 func _block(stmts: Array) -> void:

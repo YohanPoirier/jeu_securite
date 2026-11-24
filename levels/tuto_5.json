@@ -1,0 +1,40 @@
+{
+ "id": "tuto_5",
+ "etiquette": "Tuto 5/6",
+ "titre": "Regarder avant d'agir",
+ "enonce": "Parfois il y a un voleur devant toi, parfois non. Assommer dans le vide met ton robot en panne ! regarder() décrit ce qu'il y a devant toi (\"voleur\", \"mur\" ou \"rien\") et « if » n'exécute un bloc que si une condition est vraie. Écris un programme qui marche dans les deux cas : plusieurs attaques seront jouées, les paires avec un voleur, les impaires sans.",
+ "longueur": 6,
+ "salles": 1,
+ "reflexion": 200,
+ "duree": 8,
+ "panne_defaite": true,
+ "intrus": {
+  "nombre": 0,
+  "fixes": [
+   1
+  ],
+  "alterne": true
+ },
+ "syntaxe": [
+  "conditions",
+  "boucle_for"
+ ],
+ "api": [
+  "assommer",
+  "regarder"
+ ],
+ "builtins": [
+  "range"
+ ],
+ "code_initial": "# if regarder() == \"voleur\":\n#     assommer()\n",
+ "robots": [
+  {
+   "id": "garde",
+   "nom": "Garde",
+   "depart": 0
+  }
+ ],
+ "solutions": {
+  "garde": "if regarder() == \"voleur\":\n    assommer()\n"
+ }
+}

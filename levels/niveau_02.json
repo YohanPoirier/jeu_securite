@@ -19,7 +19,8 @@
   "boucle_while",
   "conditions",
   "variables",
-  "arithmetique"
+  "arithmetique",
+  "boucle_for"
  ],
  "api": [
   "avancer",
@@ -29,7 +30,8 @@
   "assommer"
  ],
  "builtins": [
-  "print"
+  "print",
+  "range"
  ],
  "code_initial": "while True:\n    # va jusqu'au mur, puis reviens\n    pass\n",
  "robots": [

@@ -1,0 +1,45 @@
+{
+ "id": "tuto_6",
+ "etiquette": "Tuto 6/6",
+ "titre": "Veiller en continu",
+ "enonce": "Tu gardes la porte de l'entrepôt, tourné vers elle. Des voleurs vont arriver, à des moments imprévisibles : il faut surveiller sans arrêt. while True: répète indéfiniment le bloc qui suit. Assomme-les tous !",
+ "longueur": 6,
+ "salles": 1,
+ "reflexion": 200,
+ "duree": 0,
+ "panne_defaite": true,
+ "intrus": {
+  "nombre": 4,
+  "apparition": [
+   3,
+   40
+  ],
+  "periode": 6,
+  "cote": 1,
+  "forcer": 4
+ },
+ "syntaxe": [
+  "boucle_while",
+  "conditions",
+  "boucle_for"
+ ],
+ "api": [
+  "assommer",
+  "regarder"
+ ],
+ "builtins": [
+  "range"
+ ],
+ "code_initial": "# while True:\n#     (ce bloc est répété sans fin)\n",
+ "robots": [
+  {
+   "id": "garde",
+   "nom": "Garde",
+   "depart": 0,
+   "orientation": "ouest"
+  }
+ ],
+ "solutions": {
+  "garde": "while True:\n    if regarder() == \"voleur\":\n        assommer()\n"
+ }
+}

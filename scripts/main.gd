@@ -73,6 +73,7 @@ var tex_tb_open: Texture2D
 var tex_tb_closed: Texture2D
 const TOOLBOX_BG := Color(0.13, 0.15, 0.20)
 var editor_title: Label
+var mem_label: Label  # compteur de caractères (missions à mémoire limitée)
 var editor_holder: VBoxContainer
 var console: RichTextLabel
 
@@ -109,6 +110,17 @@ func _save_progress() -> void:
 	for k in codes:
 		cfg.set_value("codes", k, codes[k])
 	cfg.save(SAVE_PATH)
+
+
+## Libellé d'un niveau : « Tuto 3/6 » pour les scènes du tuto, « Niveau n » (hors tuto) pour les autres.
+func _tag(i: int) -> String:
+	if levels[i].has("etiquette"):
+		return levels[i].etiquette
+	var n := 0
+	for j in i + 1:
+		if not levels[j].has("etiquette"):
+			n += 1
+	return "Niveau %d" % n
 
 
 func _key(robot_id: String) -> String:
@@ -469,6 +481,10 @@ func _build_editor_panel() -> void:
 	editor_holder = VBoxContainer.new()
 	editor_holder.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	ev.add_child(editor_holder)
+	mem_label = Label.new()  # « x caractères restants », comme un vieux SMS
+	mem_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	mem_label.visible = false
+	ev.add_child(mem_label)
 
 
 func _toggle_toolbox() -> void:
@@ -740,13 +756,20 @@ func _show_modal(kind: String) -> void:
 		c.queue_free()
 	match kind:
 		"scenario":
-			var l := _label("scénario")
-			l.add_theme_font_size_override("font_size", 20)
-			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			l.custom_minimum_size = Vector2(0, 80)
-			l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			var lv_s: Dictionary = levels[cur]
+			_modal_title("%s — %s" % [_tag(cur), lv_s.titre], false)
+			var l := _label(String(lv_s.get("enonce", "")) if lv_s.has("etiquette") else "Scénario à venir.")  # les textes des autres niveaux sont encore des brouillons
+			l.add_theme_font_size_override("font_size", 17)
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			l.custom_minimum_size = Vector2(MODAL_W - 20, 0)
 			modal_box.add_child(l)
-			modal_box.add_child(_modal_button("Fermer", _close_modal))
+			if int(lv_s.get("memoire", 0)) > 0:
+				var m := _label("Mémoire du robot : %d caractères au maximum (commentaires non comptés)." % int(lv_s.memoire))
+				m.add_theme_color_override("font_color", Color(1.0, 0.75, 0.35))
+				m.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				m.custom_minimum_size = Vector2(MODAL_W - 20, 0)
+				modal_box.add_child(m)
+			modal_box.add_child(_modal_button("C'est parti", _close_modal))
 		"reset_code":
 			_modal_title("Remettre le code de départ ?", false)
 			var warn := _label("Le programme de %s sera remplacé par le code de départ du niveau. Cette action est définitive." % _robot_name(open_robot))
@@ -803,7 +826,7 @@ func _show_modal(kind: String) -> void:
 				body.custom_minimum_size = Vector2(MODAL_W - 20, 0)
 				modal_box.add_child(body)
 			if result_info.next:
-				modal_box.add_child(_modal_button("Niveau suivant", func(): _select_level(cur + 1)))
+				modal_box.add_child(_modal_button("Suite" if levels[cur + 1].has("etiquette") else "Niveau suivant", func(): _select_level(cur + 1)))
 			modal_box.add_child(_modal_button("Fermer", _close_modal))
 		"principal":
 			var t := _label("Garde Robot")
@@ -811,7 +834,7 @@ func _show_modal(kind: String) -> void:
 			t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			modal_box.add_child(t)
 			for i in levels.size():
-				var b := _modal_button("%d. %s" % [i + 1, levels[i].titre], func(): _select_level(i))
+				var b := _modal_button("%s — %s" % [_tag(i), levels[i].titre], func(): _select_level(i))
 				b.disabled = not _is_unlocked(i)
 				modal_box.add_child(b)
 			var cb := CheckBox.new()
@@ -896,7 +919,7 @@ func _select_level(idx: int) -> void:
 	_stop()
 	cur = idx
 	var lv: Dictionary = levels[cur]
-	title_label.text = "Niveau %d — %s" % [cur + 1, lv.titre]
+	title_label.text = "%s — %s" % [_tag(cur), lv.titre]
 	# un éditeur par robot
 	for id in editors:
 		editors[id].queue_free()
@@ -907,6 +930,7 @@ func _select_level(idx: int) -> void:
 	for spec in lv.get("robots", [{"id": "robot", "nom": "Robot"}]):
 		var e := _make_editor()
 		e.text = codes.get(_key(spec.id), lv.code_initial)
+		e.text_changed.connect(_update_memory)
 		editor_holder.add_child(e)
 		editors[spec.id] = e
 	console.clear()
@@ -914,7 +938,9 @@ func _select_level(idx: int) -> void:
 	out_panel.visible = false
 	attack_choice = -1
 	_rebuild_attack_menu()
-	world = World.new(lv, {}, 0)
+	var lv_view: Dictionary = lv.duplicate()
+	lv_view["numero"] = _level_attacks().size() + 1  # aperçu de la prochaine attaque
+	world = World.new(lv_view, {}, 0)
 	view.world = world
 	view.alpha = 1.0
 	view.queue_redraw()
@@ -940,7 +966,23 @@ func _open_editor(id: String) -> void:
 		editors[k].editable = not running
 	editor_title.text = "Programme — %s" % _robot_name(id)
 	_refresh_toolbox()
+	_update_memory()
 	editor_panel.visible = true
+
+
+## Mémoire du robot : « x caractères restants » (rouge si on dépasse). Les commentaires ne comptent pas.
+func _update_memory() -> void:
+	var lim := int(levels[cur].get("memoire", 0))
+	mem_label.visible = lim > 0
+	if lim <= 0 or not editors.has(open_robot):
+		return
+	var left := lim - Interp.chars_used(editors[open_robot].text)
+	if left >= 0:
+		mem_label.text = "%d caractère%s restant%s" % [left, "s" if left > 1 else "", "s" if left > 1 else ""]
+		mem_label.add_theme_color_override("font_color", Color(0.65, 0.85, 0.65) if left > 10 else Color(1.0, 0.75, 0.35))
+	else:
+		mem_label.text = "Mémoire pleine : %d caractère%s en trop" % [-left, "s" if -left > 1 else ""]
+		mem_label.add_theme_color_override("font_color", Color(0.95, 0.35, 0.35))
 
 
 func _close_editor() -> void:
@@ -957,6 +999,7 @@ func _do_reset_code() -> void:
 	if open_robot != "" and editors.has(open_robot):
 		editors[open_robot].text = levels[cur].code_initial
 	_close_modal()
+	_update_memory()
 
 
 # ---------- exécution ----------
@@ -970,8 +1013,11 @@ func _on_run() -> void:
 	console.clear()
 	_reset_out_count()
 	var compiled := {}
+	var mem_limit := int(lv.get("memoire", 0))
 	for id in editors:
 		var res := Interp.compile(editors[id].text, lv.get("syntaxe", []), lv.get("api", []), lv.get("builtins", []))
+		if mem_limit > 0 and Interp.chars_used(editors[id].text) > mem_limit:
+			res = {"ok": false, "line": 1, "msg": "Mémoire pleine : le programme fait %d caractères, le robot n'en retient que %d. Raccourcis-le (une boucle peut aider)." % [Interp.chars_used(editors[id].text), mem_limit]}
 		if not res.ok:
 			# le jeu ne s'arrête pas : ce robot est simplement hors service (HS)
 			_log("[color=tomato]%s — ligne %d : %s[/color]" % [_robot_name(id), res.line, _esc(res.msg)])
@@ -991,7 +1037,9 @@ func _on_run() -> void:
 		list.append(attack)
 		number = list.size()
 		_rebuild_attack_menu()
-	world = World.new(lv, compiled, attack)
+	var lv_run: Dictionary = lv.duplicate()
+	lv_run["numero"] = number  # n° de l'attaque : certaines missions du tuto en dépendent
+	world = World.new(lv_run, compiled, attack)
 	view.world = world
 	view.alpha = 1.0
 	_set_running(true)

@@ -6,6 +6,8 @@ func _init() -> void:
 	root.add_child(main)
 	await process_frame
 	var fails := 0
+	var L1 := _idx(main, "niveau_01")
+	var L2 := _idx(main, "niveau_02")
 	for i in main.levels.size():
 		main.unlock_all = true
 		main._select_level(i)
@@ -28,7 +30,7 @@ func _init() -> void:
 			guard += 1
 		await process_frame
 		var st: String = main.world.status
-		print("niveau %d : %s (%s)" % [i + 1, st, main.world.message])
+		print("%s : %s (%s)" % [main.levels[i].id, st, main.world.message])
 		if main.modal_kind != "resultat":
 			print("ÉCHEC : la fenêtre de résultat devrait s'ouvrir en fin de partie")
 			fails += 1
@@ -37,9 +39,9 @@ func _init() -> void:
 			fails += 1
 	# anciennes attaques : numérotées 1, 2, 3 ; rejouer l'attaque 1 donne la même chose, sans valider
 	main.attacks.clear()
-	main._select_level(1)
+	main._select_level(L2)
 	main._close_modal()
-	main.editors["garde"].text = main.levels[1].solutions["garde"]
+	main.editors["garde"].text = main.levels[L2].solutions["garde"]
 	var traces: Array = []
 	for r in 2:
 		if r == 1:
@@ -58,10 +60,10 @@ func _init() -> void:
 		print("ÉCHEC : le rejeu ne doit pas créer de nouvelle attaque")
 		fails += 1
 	# un rejeu ne valide pas le niveau
-	main.unlocked = 2
-	main._select_level(1)
+	main.unlocked = L2 + 1
+	main._select_level(L2)
 	main._close_modal()
-	main.editors["garde"].text = main.levels[1].solutions["garde"]
+	main.editors["garde"].text = main.levels[L2].solutions["garde"]
 	main._on_run()
 	main._on_attack_chosen(1)
 	main.attack_choice = 0
@@ -113,7 +115,7 @@ func _init() -> void:
 		print("ÉCHEC : une erreur n'ouvre ni l'éditeur ni les sorties (seulement la pastille)")
 		fails += 1
 	# print : n'ouvre pas les sorties, seule la pastille compte
-	main._select_level(0)
+	main._select_level(L1)
 	main._close_modal()
 	main.editors["garde"].text = "while True:\n    print(1)\n    avancer()\n"
 	main._on_run()
@@ -143,3 +145,10 @@ func _init() -> void:
 		print("ÉCHEC : recommencer le niveau")
 		fails += 1
 	quit(fails)
+
+
+func _idx(main, id: String) -> int:
+	for i in main.levels.size():
+		if main.levels[i].id == id:
+			return i
+	return 0

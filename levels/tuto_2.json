@@ -1,0 +1,34 @@
+{
+ "id": "tuto_2",
+ "etiquette": "Tuto 2/6",
+ "titre": "Un pas en avant",
+ "enonce": "Cette fois, le voleur est à deux cases. Ton robot peut maintenant marcher : avancer() le fait avancer d'une case dans la direction où il regarde (vers la droite). Fais un pas, puis assomme.",
+ "longueur": 6,
+ "salles": 1,
+ "reflexion": 200,
+ "duree": 12,
+ "panne_defaite": true,
+ "intrus": {
+  "nombre": 0,
+  "fixes": [
+   2
+  ]
+ },
+ "syntaxe": [],
+ "api": [
+  "avancer",
+  "assommer"
+ ],
+ "builtins": [],
+ "code_initial": "# avancer() : avancer d'une case\n# assommer() : assommer le voleur devant toi\n",
+ "robots": [
+  {
+   "id": "garde",
+   "nom": "Garde",
+   "depart": 0
+  }
+ ],
+ "solutions": {
+  "garde": "avancer()\nassommer()\n"
+ }
+}

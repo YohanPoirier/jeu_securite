@@ -1,0 +1,39 @@
+{
+ "id": "tuto_4",
+ "etiquette": "Tuto 4/6",
+ "titre": "La boucle for",
+ "enonce": "Le voleur est à 14 cases ! Impossible d'écrire 14 fois avancer() : la mémoire du robot ne le permet pas. Une boucle for répète un bloc de lignes : « for i in range(5): » répète 5 fois les lignes décalées en dessous (n'oublie pas l'indentation).",
+ "longueur": 16,
+ "salles": 1,
+ "reflexion": 200,
+ "duree": 30,
+ "panne_defaite": true,
+ "intrus": {
+  "nombre": 0,
+  "fixes": [
+   15
+  ]
+ },
+ "syntaxe": [
+  "boucle_for"
+ ],
+ "api": [
+  "avancer",
+  "assommer"
+ ],
+ "builtins": [
+  "range"
+ ],
+ "code_initial": "# for i in range(5):\n#     avancer()      <- ce bloc est répété 5 fois\n",
+ "robots": [
+  {
+   "id": "garde",
+   "nom": "Garde",
+   "depart": 0
+  }
+ ],
+ "solutions": {
+  "garde": "for i in range(14):\n    avancer()\nassommer()\n"
+ },
+ "memoire": 70
+}

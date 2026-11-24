@@ -14,7 +14,8 @@
  },
  "syntaxe": [
   "boucle_while",
-  "conditions"
+  "conditions",
+  "boucle_for"
  ],
  "api": [
   "avancer",
@@ -23,7 +24,8 @@
   "assommer"
  ],
  "builtins": [
-  "print"
+  "print",
+  "range"
  ],
  "code_initial": "# tourner(ouest) : se tourner vers l'ouest. avancer() : avancer d'une case.\n# if regarder() == \"voleur\": agir seulement si un voleur est devant toi.\nwhile True:\n    avancer()\n",
  "robots": [

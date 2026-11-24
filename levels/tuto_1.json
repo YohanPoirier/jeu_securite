@@ -1,0 +1,33 @@
+{
+ "id": "tuto_1",
+ "etiquette": "Tuto 1/6",
+ "titre": "Assommer",
+ "enonce": "Un voleur est entré dans l'entrepôt, juste à côté de ton robot. Pour l'assommer, il suffit d'écrire assommer() : le robot frappe devant lui. Un programme est une suite d'ordres exécutés l'un après l'autre, chacun sur sa ligne.",
+ "longueur": 6,
+ "salles": 1,
+ "reflexion": 200,
+ "duree": 10,
+ "panne_defaite": true,
+ "intrus": {
+  "nombre": 0,
+  "fixes": [
+   1
+  ]
+ },
+ "syntaxe": [],
+ "api": [
+  "assommer"
+ ],
+ "builtins": [],
+ "code_initial": "# Écris ton ordre ci-dessous, puis clique sur Lancer.\n",
+ "robots": [
+  {
+   "id": "garde",
+   "nom": "Garde",
+   "depart": 0
+  }
+ ],
+ "solutions": {
+  "garde": "assommer()\n"
+ }
+}

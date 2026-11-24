@@ -20,6 +20,7 @@ func _init() -> void:
 	test_levels()
 	test_hs()
 	test_reflexion()
+	test_tuto()
 	print("")
 	print("=== %d tests réussis, %d échecs ===" % [passed, fails])
 	quit(1 if fails > 0 else 0)
@@ -128,17 +129,17 @@ func test_gating() -> void:
 	ok(gate("while True:\n    avancer()\n", ["boucle_while"]) == "", "gating/while_ok")
 	ok(gate("avancer()\n", []) == "", "gating/appel_ok")
 	var m := gate("while True:\n    avancer()\n", [])
-	ok(m.begins_with("Ligne 1") and m.contains("while") and m.contains("niveau 1"), "gating/while_refuse", m)
+	ok(m.begins_with("Ligne 1") and m.contains("while") and m.contains("plus loin"), "gating/while_refuse", m)
 	m = gate("if True:\n    avancer()\n", ["boucle_while"])
-	ok(m.begins_with("Ligne 1") and m.contains("if") and m.contains("niveau 2"), "gating/if_refuse", m)
+	ok(m.begins_with("Ligne 1") and m.contains("if") and m.contains("plus loin"), "gating/if_refuse", m)
 	m = gate("x = 3\n", ["boucle_while", "conditions"])
-	ok(m.begins_with("Ligne 1") and m.contains("niveau 3"), "gating/variable_refusee", m)
+	ok(m.begins_with("Ligne 1") and m.contains("plus loin"), "gating/variable_refusee", m)
 	m = gate("while not True:\n    avancer()\n", ["boucle_while"])
-	ok(m.contains("not") and m.contains("niveau 2"), "gating/not_refuse", m)
+	ok(m.contains("not") and m.contains("plus loin"), "gating/not_refuse", m)
 	m = gate("while True:\n    avancer()\n    avancer() + 1\n", ["boucle_while"])
-	ok(m.begins_with("Ligne 3") and m.contains("niveau 3"), "gating/calcul_refuse", m)
+	ok(m.begins_with("Ligne 3") and m.contains("plus loin"), "gating/calcul_refuse", m)
 	m = gate("for i in range(3):\n    avancer()\n", ["boucle_while", "conditions", "variables", "arithmetique"])
-	ok(m.begins_with("Ligne 1") and m.contains("niveau 4"), "gating/for_refuse", m)
+	ok(m.begins_with("Ligne 1") and m.contains("plus loin"), "gating/for_refuse", m)
 	m = gate("for i in range(3):\n    avancer()\n", ["boucle_for", "variables"])
 	ok(m == "", "gating/for_ok", m)
 	m = gate("reculer()\n", [])
@@ -280,3 +281,38 @@ func test_reflexion() -> void:
 		wl.tick()
 		wh.tick()
 	ok(wh.robots[0].pos < wl.robots[0].pos, "reflexion/réflexion lourde = moins d'actions", "léger %d, lourd %d" % [wl.robots[0].pos, wh.robots[0].pos])
+
+
+## Tuto : mémoire en caractères, assommer dans le vide, alternance voleur / pas de voleur.
+func test_tuto() -> void:
+	var I = Interp
+	ok(I.chars_used("avancer()\n") == 9, "tuto/chars simple", str(I.chars_used("avancer()\n")))
+	ok(I.chars_used("# commentaire\n\nassommer()  # fin\n") == 10, "tuto/chars commentaires et lignes vides ignorés", str(I.chars_used("# commentaire\n\nassommer()  # fin\n")))
+	ok(I.chars_used("x = \"#a\"\n") == 8, "tuto/chars # dans une chaîne compte", str(I.chars_used("x = \"#a\"\n")))
+	# tuto 3 : la solution « à la main » tient dans la mémoire
+	var t3 := load_level("tuto_3")
+	ok(I.chars_used(t3.solutions.garde) <= int(t3.memoire), "tuto/3 solution dans la mémoire", str(I.chars_used(t3.solutions.garde)))
+	# tuto 4 : 14 fois avancer() ne tient pas, la boucle for tient
+	var t4 := load_level("tuto_4")
+	var by_hand := "avancer()\n".repeat(14) + "assommer()\n"
+	ok(I.chars_used(by_hand) > int(t4.memoire), "tuto/4 à la main dépasse la mémoire", str(I.chars_used(by_hand)))
+	ok(I.chars_used(t4.solutions.garde) <= int(t4.memoire), "tuto/4 la boucle for tient", str(I.chars_used(t4.solutions.garde)))
+	var rej := I.compile(by_hand, t4.syntaxe, t4.api, t4.builtins)
+	ok(rej.ok, "tuto/4 syntaxe à la main acceptée par le jeu (la limite est celle de la mémoire)")
+	# tuto 5 : assommer sans regarder échoue aux attaques impaires (pas de voleur), passe aux paires
+	var t5 := load_level("tuto_5")
+	var naive := compile_all(t5, {"garde": "assommer()\n"})
+	var odd := t5.duplicate()
+	odd["numero"] = 1
+	var even := t5.duplicate()
+	even["numero"] = 2
+	ok(play(odd, naive, 1).status == "defaite", "tuto/5 assommer à vide : panne, défaite")
+	ok(play(even, naive, 1).status == "victoire", "tuto/5 voleur présent : assommer seul suffit")
+	var good := compile_all(t5, t5.solutions)
+	ok(play(odd, good, 1).status == "victoire" and play(even, good, 1).status == "victoire", "tuto/5 le if gagne dans les deux cas")
+	# assommer dans le vide met le robot hors service
+	var lv := load_level("niveau_01")
+	var res := compile_all(lv, {"garde": "assommer()\n"})
+	var w := World.new(lv, res, 3)
+	w.tick()
+	ok(w.robots[0].hs and w.events.size() == 1 and String(w.events[0].msg).contains("personne"), "tuto/assommer dans le vide : robot HS", str(w.events))

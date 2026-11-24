@@ -25,7 +25,7 @@ const API_DOC := {
 	"tourner": "tourner(direction) : te tourne vers nord, sud, est ou ouest (1 tick)",
 	"attendre": "attendre(n) : ne fait rien pendant n ticks",
 	"regarder": "regarder() : décrit la case devant toi : \"mur\", \"voleur\" ou \"rien\" (instantané)",
-	"assommer": "assommer() : assomme le voleur qui est sur la case devant toi (1 tick)",
+	"assommer": "assommer() : assomme le voleur qui est sur la case devant toi (1 tick). Attention : s'il n'y a personne, ton robot tombe en panne !",
 }
 
 var level: Dictionary
@@ -58,14 +58,17 @@ func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 	else:
 		length = int(l)
 	var cfg: Dictionary = level.get("intrus", {})
-	var n := int(cfg.get("nombre", 1))
+	var num := int(level.get("numero", p_seed))  # numéro de l'attaque (1, 2, 3...) ; à défaut, la graine
+	var cnt = cfg.get("nombre", 1)
+	var n: int = rng.randi_range(int(cnt[0]), int(cnt[1])) if cnt is Array else int(cnt)
 	var ap: Array = cfg.get("apparition", [2, 6])
 	var gap := int(cfg.get("ecart", 0))
 	var periode := int(cfg.get("periode", 3))
 	var forcer := int(cfg.get("forcer", 4))
 	for i in n:
 		var spawn := rng.randi_range(int(ap[0]), int(ap[1])) + i * gap
-		var side := 1 if rng.randi_range(0, 1) == 1 else -1  # côté par lequel il arrive
+		var rnd_side := 1 if rng.randi_range(0, 1) == 1 else -1  # côté par lequel il arrive (le tirage est toujours fait : les graines gardent le même sens)
+		var side: int = int(cfg["cote"]) if cfg.has("cote") else rnd_side
 		var x0 := -START_OUT if side == 1 else length - 1 + START_OUT
 		intruders.append({
 			"spawn": spawn, "side": side, "dir": side, "periode": periode, "t0": 0, "forcer": forcer,
@@ -75,11 +78,24 @@ func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 			"until": 0, "wf": Vector2i(x0, 0), "wt": Vector2i(x0, 0), "ws": 0,
 			"pwf": Vector2i(x0, 0), "pwt": Vector2i(x0, 0), "pws": 0,
 		})
+	# voleurs « figés » (tuto) : déjà là au départ, immobiles jusqu'à ce qu'on les assomme.
+	# Avec "alterne", ils ne sont là qu'aux attaques paires (les impaires n'ont aucun voleur).
+	if not (cfg.get("alterne", false) and num % 2 == 1):
+		for cx in cfg.get("fixes", []):
+			intruders.append({
+				"spawn": 0, "side": 1, "dir": 1, "periode": periode, "t0": 0, "forcer": forcer,
+				"x": int(cx), "ry": 0, "px": int(cx), "py": 0, "pos": int(cx), "prev": int(cx),
+				"state": "actif", "phase": "fixe", "path": [], "loot": false, "target": Vector2i.ZERO,
+				"face": -1, "escaped": false, "exit_gate": 0,
+				"until": 1 << 30, "wf": Vector2i(int(cx), 0), "wt": Vector2i(int(cx), 0), "ws": 0,
+				"pwf": Vector2i(int(cx), 0), "pwt": Vector2i(int(cx), 0), "pws": 0,
+			})
 	var specs: Array = level.get("robots", [{"id": "robot", "nom": "Robot", "depart": 0}])
 	for spec in specs:
 		var start := clampi(int(spec.get("depart", 0)), 0, length - 1)
 		var code = codes.get(spec.id, [])
-		var rb := {"id": spec.id, "nom": spec.get("nom", spec.id), "pos": start, "prev": start, "ry": 0, "pry": 0, "dir": Vector2i(1, 0), "vm": null, "hs": code == null, "facing": 1, "stun": false}
+		var face: Vector2i = DIRS.get(spec.get("orientation", "est"), Vector2i(1, 0))
+		var rb := {"id": spec.id, "nom": spec.get("nom", spec.id), "pos": start, "prev": start, "ry": 0, "pry": 0, "dir": face, "vm": null, "hs": code == null, "facing": 1 if face.x >= 0 else -1, "stun": false}
 		var vm := VM.new(code if code != null else [], self, level.get("builtins", []))
 		vm.robot_ref = rb
 		vm.budget = int(level.get("reflexion", 200))
@@ -117,6 +133,13 @@ func call_api(name: String, args: Array, rb: Dictionary):
 		"regarder":
 			return {"value": _look(rb), "cost": 0}
 		"assommer":
+			var front := Vector2i(rb.pos + rb.dir.x, rb.ry + rb.dir.y)
+			var someone := false
+			for it in intruders:
+				if it.state == "actif" and it.x == front.x and it.ry == front.y:
+					someone = true
+			if not someone:
+				return PyOps.err("assommer() : il n'y a personne devant toi ! Regarde d'abord avec regarder().")
 			rb.stun = true  # résolu à la fin du tick, sur la situation du début du tick (case devant le robot)
 			return {"value": null, "cost": 1}
 	return PyOps.err("Fonction inconnue : %s" % name)
@@ -352,6 +375,12 @@ func tick() -> void:
 			# une erreur ne stoppe pas la partie : ce robot-là est simplement hors service
 			rb.hs = true
 			events.append({"id": rb.id, "nom": rb.nom, "line": vm.error.line, "msg": vm.error.msg})
+	if level.get("panne_defaite", false):
+		for rb in robots:
+			if rb.hs:
+				status = "defaite"
+				message = "Ton robot est tombé en panne : regarde l'erreur dans les sorties."
+				return
 	var all_caught := true
 	for it in intruders:
 		it.px = it.x
@@ -380,6 +409,12 @@ func tick() -> void:
 				message = "Un voleur s'est enfui avec un objet."
 				return
 			all_caught = false
+	var duree := int(level.get("duree", 0))  # durée de la mission (ticks) : 0 = pas de limite
 	if all_caught:
+		if intruders.is_empty() and tick_n < duree:
+			return  # pas de voleur : on laisse passer le temps, le robot ne doit pas tomber en panne
 		status = "victoire"
-		message = "Tous les intrus ont été arrêtés."
+		message = "Tous les intrus ont été arrêtés." if not intruders.is_empty() else "Aucun voleur ce coup-ci : rien à signaler."
+	elif duree > 0 and tick_n >= duree:
+		status = "defaite"
+		message = "Le temps est écoulé : le voleur n'a pas été arrêté."
