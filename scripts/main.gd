@@ -432,13 +432,9 @@ func _build_editor_panel() -> void:
 <rect x="3" y="12.2" width="18" height="1.6" fill="#1a1d27"/>
 <rect x="10.5" y="11" width="3" height="4" rx="0.8" fill="#f5a524"/></svg>""")
 	tex_tb_open = _svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
-<g transform="rotate(-24 3.5 12)">
-<path d="M8.5 7.5V6a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 15.5 6v1.5" fill="none" stroke="#b8c4d8" stroke-width="2"/>
-<rect x="3" y="7.5" width="18" height="4.5" rx="1.5" fill="#b8c4d8"/>
-</g>
-<rect x="3" y="12" width="18" height="8.5" rx="2" fill="#b8c4d8"/>
-<rect x="4.5" y="12" width="15" height="2.2" fill="#1a1d27" opacity="0.6"/>
-<rect x="10.5" y="15.5" width="3" height="3" rx="0.8" fill="#f5a524"/></svg>""")
+<rect x="4" y="3" width="16" height="7" rx="2" fill="#b8c4d8"/>
+<rect x="3" y="12.2" width="18" height="7.8" rx="2" fill="#b8c4d8"/>
+<rect x="10.5" y="12.2" width="3" height="3.4" rx="0.8" fill="#f5a524"/></svg>""")
 	toolbox_btn = _icon_button(tex_tb_closed,
 		"Boîte à outils : rappel des fonctions du niveau (un clic sur l'une d'elles l'insère)")
 	toolbox_btn.toggle_mode = true
