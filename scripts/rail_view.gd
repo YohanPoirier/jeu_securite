@@ -332,7 +332,7 @@ func _slots() -> Dictionary:
 	return out
 
 
-## Rangement visé : plusieurs personnages sur une même case sont mis côte à côte, en plus petit.
+## Rangement visé : plusieurs personnages sur une même case sont légèrement décalés (même taille).
 func _slot_targets() -> Dictionary:
 	var by_cell: Dictionary = {}
 	if world == null:
@@ -357,18 +357,9 @@ func _slot_targets() -> Dictionary:
 		ids = others + guards if f >= 0 else guards + others
 		var n := ids.size()
 		for idx in n:
-			var off := Vector2.ZERO
+			# taille normale : les personnages se superposent, légèrement décalés (le robot, dessiné au-dessus, reste devant)
+			var off := Vector2((idx - (n - 1) / 2.0) * (0.40 if n == 2 else 0.20), 0.0) if n > 1 else Vector2.ZERO
 			var sc := 1.0
-			if n == 2:
-				off = Vector2(-0.22 + 0.44 * idx, 0.0)
-				sc = 0.82
-			elif n == 3:
-				off = Vector2(-0.30 + 0.30 * idx, 0.07 if idx != 1 else -0.08)
-				sc = 0.72
-			elif n > 3:
-				var cols := ceili(n / 2.0)
-				off = Vector2((idx % cols - (cols - 1) / 2.0) * 0.30, ((idx / cols) - 0.5) * 0.34)
-				sc = 0.60
 			out[ids[idx]] = {"off": off, "sc": sc}
 	return out
 
