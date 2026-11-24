@@ -73,6 +73,10 @@ void fragment() {
 		float cone = (1.0 - smoothstep(hw * 0.65, hw, across))
 			* smoothstep(-cell * 0.03, cell * 0.04, along)
 			* (1.0 - smoothstep(len * 0.80, len, along));
+		// le faisceau n'éclaire pas le robot qui le porte (casquette, tête) : il reste au premier plan
+		vec2 qb = abs(p - body[i]) - vec2(0.20, 0.41) * cell;
+		float sdf = length(max(qb, 0.0)) + min(max(qb.x, qb.y), 0.0);
+		cone *= smoothstep(0.0, cell * 0.06, sdf);
 		float halo = 1.0 - smoothstep(cell * 0.10, cell * 0.30, length(p - body[i]));
 		light = max(light, max(cone * 0.92, halo * 0.75));
 	}
