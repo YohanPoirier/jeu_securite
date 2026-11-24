@@ -327,22 +327,23 @@ func test_tuto() -> void:
 
 ## Une fonction inconnue ou pas encore disponible n'échoue qu'à l'exécution de sa ligne.
 func test_debug_couloirs() -> void:
+	# le second couloir du moteur (niveaux avec "couloir2") : praticable, fermé, séparé du premier
 	var lv := load_level("debug_01")
-	var compiled := compile_all(lv, lv.solutions)
-	var w := World.new(lv, compiled, 1)
-	var rb: Dictionary = w.robots[0]
-	ok(rb.ry == World.COR_B, "debug/le robot démarre dans le second couloir")
+	lv["couloir2"] = true
+	lv["longueur"] = 12
+	lv["robots"] = [{"id": "garde", "depart": 0, "couloir": 2}]
+	var w := World.new(lv, {"garde": []}, 1)
+	ok(w.robots[0].ry == World.COR_B, "debug/un robot peut démarrer dans le second couloir")
 	ok(w.walkable(0, World.COR_B) and w.walkable(11, World.COR_B) and not w.walkable(12, World.COR_B) and not w.walkable(0, World.COR_B - 1),
 		"debug/le second couloir est praticable, fermé et séparé du premier")
+	# le niveau de test : un couloir de 4 cases, le voleur de ronde le parcourt en entier
+	var lv2 := load_level("debug_01")
+	var w2 := World.new(lv2, compile_all(lv2, lv2.solutions), 1)
 	var xs := {}
-	var robot_max := 0
-	for _t in 200:
-		w.tick()
-		xs[w.intruders[0].x] = true
-		robot_max = maxi(robot_max, rb.pos)
-	ok(xs.size() == 12 and w.status == "en_cours" or w.status == "defaite", "debug/le voleur parcourt tout le couloir", str(xs.keys()))
-	ok(rb.ry == World.COR_B and robot_max == 11, "debug/le robot parcourt tout son couloir sans en sortir", "ry=%d max=%d" % [rb.ry, robot_max])
-	ok(w.intruders[0].state != "arrete" and not w.intruders[0].loot, "debug/le voleur ne vole pas et n'est pas arrêté")
+	for _t in 60:
+		w2.tick()
+		xs[w2.intruders[0].x] = true
+	ok(xs.size() == 4 and not w2.intruders[0].loot, "debug/le voleur fait les cent pas sur les 4 cases", str(xs.keys()))
 
 
 func test_noms_inconnus() -> void:

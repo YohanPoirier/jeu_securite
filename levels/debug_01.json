@@ -2,11 +2,10 @@
  "id": "debug_01",
  "etiquette": "Debug",
  "debug": true,
- "titre": "Deux couloirs",
- "enonce": "Niveau de test. Un voleur fait les cent pas dans le couloir du haut, ton robot marche dans le couloir du bas : ils ne peuvent pas se rencontrer.",
- "longueur": 12,
- "salles": 2,
- "couloir2": true,
+ "titre": "Robot et voleur",
+ "enonce": "Niveau de test. Un couloir de 4 cases : un voleur fait les cent pas, ton robot aussi.",
+ "longueur": 4,
+ "salles": 1,
  "reflexion": 200,
  "duree": 120,
  "intrus": {
@@ -15,7 +14,7 @@
   "rondes": [
    {
     "x": 3,
-    "dir": 1
+    "dir": -1
    }
   ]
  },
@@ -33,17 +32,16 @@
  "builtins": [
   "range"
  ],
- "code_initial": "# Le robot marche dans le couloir du bas.\nwhile True:\n    for i in range(11):\n        avancer()\n    tourner(ouest)\n    for i in range(11):\n        avancer()\n    tourner(est)\n",
+ "code_initial": "# Le robot fait des allers-retours dans le couloir.\nwhile True:\n    for i in range(3):\n        avancer()\n    tourner(ouest)\n    for i in range(3):\n        avancer()\n    tourner(est)\n",
  "robots": [
   {
    "id": "garde",
    "nom": "Garde",
    "depart": 0,
-   "orientation": "est",
-   "couloir": 2
+   "orientation": "est"
   }
  ],
  "solutions": {
-  "garde": "# Le robot marche dans le couloir du bas.\nwhile True:\n    for i in range(11):\n        avancer()\n    tourner(ouest)\n    for i in range(11):\n        avancer()\n    tourner(est)\n"
+  "garde": "# Le robot fait des allers-retours dans le couloir.\nwhile True:\n    for i in range(3):\n        avancer()\n    tourner(ouest)\n    for i in range(3):\n        avancer()\n    tourner(est)\n"
  }
 }
