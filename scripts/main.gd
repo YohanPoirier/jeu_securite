@@ -1059,7 +1059,7 @@ func _help_text(tab: String) -> String:
 			t += "[b]Programmer un robot[/b]\nClique sur un robot : son éditeur s'ouvre à gauche. Chaque robot a son propre programme. la petite boîte à outils déplie un rappel des fonctions du robot (un clic sur l'une d'elles l'insère dans ton code), ↻ remet le code de départ (après confirmation), ✕ ferme l'éditeur.\n\n"
 			t += "[b]Lancer[/b]\n▶ Lancer démarre l'attaque. La petite flèche ▲ permet de choisir une nouvelle attaque, ou de rejouer une ancienne (Attaque 1, 2, 3…) pour déboguer : un rejeu ne valide pas le niveau. ■ Arrêter interrompt la simulation.\n\n"
 			t += "[b]Vitesse[/b]\nLe bouton compteur règle la vitesse. La simulation est en pause tant qu'on n'a pas choisi.\n\n"
-			t += "[b]Réflexion[/b]\nSi le programme calcule trop longtemps avant d'agir, le robot perd son tour : un petit cerveau s'affiche au-dessus de lui.\n\n"
+			t += "[b]Réflexion[/b]\nSi le programme calcule trop longtemps avant d'agir, le robot perd son tour : une bulle de pensée s'affiche au-dessus de lui.\n\n"
 			t += "[b]Sorties[/b]\nLa fenêtre de droite affiche les print et les erreurs, toujours avec le nom du robot concerné.\n\n"
 			t += "[b]Menu[/b]\nRecommencer le niveau, ouvrir cette aide, retourner au menu principal."
 		"python":

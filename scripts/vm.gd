@@ -4,7 +4,7 @@ extends RefCounted
 ##  - Une action de coût c occupe le robot pendant c ticks.
 ##  - La réflexion est gratuite tant qu'elle reste sous le seuil `budget` (instructions par tick).
 ##    Au-delà, penser compte comme une action : le robot perd son tour (`thinking` vaut vrai pendant
-##    ce tick, l'interface affiche un petit cerveau) puis reprend où il en était. Ce n'est jamais une
+##    ce tick, l'interface affiche une bulle de pensée) puis reprend où il en était. Ce n'est jamais une
 ##    erreur, même pour une boucle infinie sans action (`while True: pass`).
 
 const Comp = preload("res://scripts/compiler.gd")

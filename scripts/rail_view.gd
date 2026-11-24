@@ -53,7 +53,8 @@ var _gate_angle := [0.0, 0.0]  # angle d'ouverture affiché des deux portes (ani
 var _night: ColorRect = null  # calque d'obscurité (shader) posé sur l'entrepôt
 var _fg: Control = null  # calque des robots, au-dessus de la nuit
 var _ci: CanvasItem = null  # surface sur laquelle on dessine (soi-même, ou _fg pour les robots)
-var _hud: Control = null  # calque des noms et du cerveau, au-dessus de la nuit
+var _hud_anim := false
+var _hud: Control = null  # calque des noms et de la bulle de pensée, au-dessus de la nuit
 
 const NIGHT_SHADER := """
 shader_type canvas_item;
@@ -442,7 +443,7 @@ func _draw_robots_fg() -> void:
 	_ci = self
 
 
-## Noms, « clic : programmer » et cerveau : par-dessus la nuit, pour rester lisibles.
+## Noms, « clic : programmer » et bulle de pensée : par-dessus la nuit, pour rester lisibles.
 ## Quatre petits coins autour d'une case.
 ## `only` : les coins à tracer (0 haut-gauche, 1 haut-droit, 2 bas-gauche, 3 bas-droit).
 func _marker(rc: Rect2, col: Color, only := [0, 1, 2, 3]) -> void:
@@ -488,7 +489,7 @@ func _draw_hud() -> void:
 		var c: Vector2 = _robot_pos(lay, rb, slots)
 		var broken: bool = rb.hs
 		if rb.vm.thinking and not broken:
-			_hud.draw_texture_rect(_brain(), Rect2(c + Vector2(cell * 0.10, -cell * (0.55 + 0.4 * sl.sc)), Vector2(cell * 0.7, cell * 0.7) * sl.sc), false)
+			_draw_thinking(Rect2(c + Vector2(cell * 0.10, -cell * (0.75 + 0.4 * sl.sc)), Vector2(cell * 0.9, cell * 0.9) * sl.sc))
 		_hud.draw_string(font, Vector2(c.x - cell, c.y + cell * (0.40 + 0.22 * sl.sc)), String(rb.nom) + (" (HS)" if broken else ""),
 			HORIZONTAL_ALIGNMENT_CENTER, cell * 2.0, 13, Color(1.0, 0.55, 0.55) if broken else Color(1, 1, 1, 0.95))
 		if i == hover:
@@ -987,15 +988,27 @@ func _update_night(lay: Dictionary, lamps: Array, slots: Dictionary) -> void:
 	mat.set_shader_parameter("lamp", lp)
 
 
-## Petit cerveau (dessiné en SVG) : affiché quand la réflexion prend le pas sur une action.
+## Nuage de la bulle de pensée (SVG) : affiché quand la réflexion prend le pas sur une action.
 func _brain() -> Texture2D:
 	if _brain_tex == null:
-		var svg := """<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24">
-<g fill="#f4a6c0" stroke="#7a2f4f" stroke-width="1.3">
-<circle cx="8" cy="9" r="5"/><circle cx="16" cy="9" r="5"/><circle cx="7.5" cy="15" r="4.6"/><circle cx="16.5" cy="15" r="4.6"/><circle cx="12" cy="13" r="5"/></g>
-<g fill="none" stroke="#7a2f4f" stroke-width="1.3" stroke-linecap="round">
-<path d="M12 5 V19"/><path d="M6 8 Q8 10 6 12"/><path d="M18 8 Q16 10 18 12"/><path d="M8.5 15 Q10 14 9.5 17"/><path d="M15.5 15 Q14 14 14.5 17"/></g></svg>"""
+		var svg := """<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 24 24"><circle cx="5.2" cy="10.2" r="4.0" fill="#1a1d27"/><circle cx="9.3" cy="7.2" r="4.699999999999999" fill="#1a1d27"/><circle cx="14.7" cy="7.2" r="4.699999999999999" fill="#1a1d27"/><circle cx="18.8" cy="10.2" r="4.0" fill="#1a1d27"/><circle cx="8.6" cy="12.8" r="3.8000000000000003" fill="#1a1d27"/><circle cx="15.4" cy="12.8" r="3.8000000000000003" fill="#1a1d27"/><circle cx="12" cy="11" r="4.8" fill="#1a1d27"/><circle cx="5.2" cy="18.6" r="1.8" fill="#1a1d27"/><circle cx="2.8" cy="21.6" r="1.2" fill="#1a1d27"/><circle cx="5.2" cy="10.2" r="3.4" fill="#f2f4f8"/><circle cx="9.3" cy="7.2" r="4.1" fill="#f2f4f8"/><circle cx="14.7" cy="7.2" r="4.1" fill="#f2f4f8"/><circle cx="18.8" cy="10.2" r="3.4" fill="#f2f4f8"/><circle cx="8.6" cy="12.8" r="3.2" fill="#f2f4f8"/><circle cx="15.4" cy="12.8" r="3.2" fill="#f2f4f8"/><circle cx="12" cy="11" r="4.2" fill="#f2f4f8"/><circle cx="5.2" cy="18.6" r="1.25" fill="#f2f4f8"/><circle cx="2.8" cy="21.6" r="0.7" fill="#f2f4f8"/></svg>"""
 		var img := Image.new()
 		img.load_svg_from_string(svg)
 		_brain_tex = ImageTexture.create_from_image(img)
 	return _brain_tex
+
+
+## Bulle de pensée au-dessus d'un robot qui réfléchit : nuage et trois points qui s'allument l'un après l'autre.
+func _draw_thinking(r: Rect2) -> void:
+	_hud.draw_texture_rect(_brain(), r, false)
+	var t := Time.get_ticks_msec() / 1000.0
+	for j in 3:
+		var phase := fposmod(t * 1.0 - j / 3.0, 1.0)  # un cycle par seconde
+		var on := clampf(1.0 - absf(phase - 0.15) * 3.0, 0.0, 1.0)
+		var col := Color(0.23, 0.26, 0.34).lerp(Color(0.72, 0.75, 0.82), 1.0 - on)
+		_hud.draw_circle(r.position + Vector2((8.3 + 3.7 * j) / 24.0, 10.0 / 24.0) * r.size, r.size.x * 1.35 / 24.0, col)
+	if not _hud_anim:  # animation : on redessine à l'image suivante tant que la bulle est affichée
+		_hud_anim = true
+		get_tree().process_frame.connect(func():
+			_hud_anim = false
+			_hud.queue_redraw(), CONNECT_ONE_SHOT)
