@@ -11,6 +11,7 @@ extends Control
 
 signal robot_clicked(id: String)
 signal background_clicked  # clic dans l'entrepôt, hors de tout robot
+signal view_moved  # le joueur a déplacé la vue lui-même : la caméra automatique doit s'arrêter
 
 var world = null
 var alpha := 1.0  # avancement dans le tick courant, de 0 à 1
@@ -21,6 +22,8 @@ var inset_left := 0.0  # largeur masquée à gauche (éditeur) : la scène se ce
 var inset_right := 0.0  # largeur masquée à droite (sorties)
 var zoom := 1.0  # molette : zoom ; glisser : déplacer la scène
 var pan := Vector2.ZERO
+var follow_id := ""  # robot suivi par la caméra (vide = pas de suivi)
+var _returning := false  # la caméra revient doucement au centre après un suivi
 var _press_pos := Vector2.ZERO
 var _pressing := false
 var _dragging := false
@@ -123,12 +126,12 @@ func _ready() -> void:
 func _layout() -> Dictionary:
 	var l: int = world.length if world != null else 6
 	var cols := l + 2 * MARGIN
-	var avail_w := size.x - inset_left - inset_right
+	var avail_w := size.x  # l'échelle ne dépend ni de l'éditeur ni des sorties : ouvrir un panneau ne dézoome pas
 	var avail_h := size.y - inset_top - inset_bottom
 	var cell: float = minf(avail_w / float(cols), avail_h / float(ROWS)) * zoom
 	return {
 		"l": l, "cols": cols, "cell": cell,
-		"x0": inset_left + (avail_w - cell * cols) / 2.0 + pan.x,
+		"x0": (avail_w - cell * cols) / 2.0 + pan.x,
 		"y0": inset_top + (avail_h - cell * ROWS) / 2.0 + pan.y,
 		"k": MARGIN,
 	}
@@ -138,6 +141,47 @@ func _layout() -> Dictionary:
 func reset_view() -> void:
 	zoom = 1.0
 	pan = Vector2.ZERO
+	_returning = false
+	queue_redraw()
+
+
+## Caméra automatique : centre la vue sur ce robot (dans l'espace laissé libre par les panneaux) et le suit.
+## Un id vide arrête le suivi ; la vue revient alors doucement au centre.
+func set_follow(id: String) -> void:
+	if id == "" and follow_id != "":
+		_returning = true
+	elif id != "":
+		_returning = false
+	follow_id = id
+	set_process(follow_id != "" or _returning)
+
+
+func _process(delta: float) -> void:
+	if world == null:
+		return
+	var target := Vector2.ZERO
+	if follow_id != "":
+		var rb = null
+		for r in world.robots:
+			if r.id == follow_id:
+				rb = r
+		if rb == null:
+			return
+		var saved := pan
+		pan = Vector2.ZERO
+		var c0: Vector2 = _robot_center(_layout(), rb)  # position du robot si la vue n'était pas déplacée
+		pan = saved
+		var free := Vector2(inset_left + (size.x - inset_left - inset_right) / 2.0, inset_top + (size.y - inset_top - inset_bottom) / 2.0)
+		target = free - c0
+	elif not _returning:
+		set_process(false)
+		return
+	var k := 1.0 - exp(-delta * 10.0)
+	pan = pan.lerp(target, k)
+	if follow_id == "" and pan.distance_to(target) < 0.5:
+		pan = target
+		_returning = false
+		set_process(false)
 	queue_redraw()
 
 
@@ -157,11 +201,20 @@ func _zoom_at(point: Vector2, factor: float) -> void:
 
 
 ## La scène ne peut pas quitter complètement l'écran.
+## Le joueur prend la main : la caméra automatique s'arrête et ne revient pas au centre.
+func _manual_move() -> void:
+	_returning = false
+	if follow_id != "":
+		follow_id = ""
+		set_process(false)
+		view_moved.emit()
+
+
 func _clamp_pan() -> void:
 	var lay := _layout()
 	var w: float = lay.cell * lay.cols
 	var h: float = lay.cell * ROWS
-	var avail_w := size.x - inset_left - inset_right
+	var avail_w := size.x
 	var avail_h := size.y - inset_top - inset_bottom
 	var lim_x := (avail_w + w) / 2.0 - 40.0
 	var lim_y := (avail_h + h) / 2.0 - 40.0
@@ -274,6 +327,7 @@ func _gui_input(event: InputEvent) -> void:
 		if _pressing:
 			if not _dragging and event.position.distance_to(_press_pos) > 5.0:
 				_dragging = true
+				_manual_move()
 			if _dragging:
 				pan += event.relative
 				_clamp_pan()
@@ -293,6 +347,7 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventMagnifyGesture:
 		_zoom_at(event.position, event.factor)
 	elif event is InputEventPanGesture:
+		_manual_move()
 		pan -= event.delta * 8.0
 		_clamp_pan()
 		queue_redraw()
@@ -302,6 +357,7 @@ func _gui_input(event: InputEvent) -> void:
 				robot_clicked.emit(world.robots[i].id)
 				return
 		if event.double_click:
+			_manual_move()
 			reset_view()
 			return
 		_pressing = true  # clic sur le fond : un simple clic ferme l'éditeur, un glissé déplace la scène
@@ -313,6 +369,8 @@ func _gui_input(event: InputEvent) -> void:
 		_pressing = false
 		_dragging = false
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
+		if event.pressed:
+			_manual_move()
 		_pressing = event.pressed
 		_dragging = event.pressed
 		_press_pos = event.position

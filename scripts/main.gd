@@ -19,8 +19,11 @@ const GREEN := Color(0.16, 0.50, 0.28)
 const ATTACK_TIP := "Attaque à lancer : une nouvelle, ou une ancienne à rejouer pour déboguer"
 const ERROR_LINE := Color(0.9, 0.25, 0.25, 0.30)
 const REPLAY_COLOR := Color(1.0, 0.82, 0.45)
-const EDITOR_W := 520
+const EDITOR_W := 520  # largeurs par défaut, modifiables à la souris
 const OUT_W := 360
+const PANEL_MIN_W := 280
+var editor_w := float(EDITOR_W)
+var out_w := float(OUT_W)
 const MODAL_W := 440
 const PANEL_BG := Color(0.09, 0.10, 0.13)
 const BORDER := Color(0.20, 0.22, 0.27)
@@ -69,6 +72,10 @@ var out_panel: PanelContainer
 var editor_panel: PanelContainer
 var toolbox: VBoxContainer  # boîte à outils : rappel des fonctions utilisables (repliable)
 var toolbox_btn: Button
+var cam_btn: Button
+var cam_follow := true  # caméra automatique : suit le robot dont l'éditeur est ouvert
+var tex_cam_on: Texture2D
+var tex_cam_off: Texture2D
 var tex_tb_open: Texture2D
 var tex_tb_closed: Texture2D
 const TOOLBOX_BG := Color(0.13, 0.15, 0.20)
@@ -161,10 +168,15 @@ func _build_ui() -> void:
 	view.inset_bottom = BOTTOM_H
 	view.robot_clicked.connect(_open_editor)
 	view.background_clicked.connect(_close_editor)
+	view.view_moved.connect(func():
+		cam_follow = false
+		_update_follow())
 	add_child(view)
 
 	_build_editor_panel()
 	_build_output_panel()
+	_add_resize_handle(editor_panel, false)
+	_add_resize_handle(out_panel, true)
 	_build_bottom_bar()
 	_build_menu()
 	_build_modal()
@@ -425,7 +437,7 @@ func _build_editor_panel() -> void:
 	editor_panel = _panel()
 	editor_panel.set_anchors_preset(Control.PRESET_LEFT_WIDE)
 	editor_panel.offset_left = 0
-	editor_panel.offset_right = EDITOR_W
+	editor_panel.offset_right = editor_w
 	editor_panel.offset_top = TOP_H
 	editor_panel.offset_bottom = -BOTTOM_H
 	editor_panel.visible = false
@@ -438,6 +450,24 @@ func _build_editor_panel() -> void:
 	editor_title.add_theme_font_size_override("font_size", 16)
 	editor_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	eh.add_child(editor_title)
+	tex_cam_on = _svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
+<path d="M8 6.5l1.2-2h5.6l1.2 2z" fill="#b8c4d8"/>
+<rect x="2.5" y="6.5" width="19" height="13" rx="2.2" fill="#b8c4d8"/>
+<circle cx="12" cy="13" r="4.2" fill="#1a1d27"/>
+<circle cx="12" cy="13" r="2.4" fill="#6b7689"/>
+<circle cx="18.6" cy="9.4" r="1" fill="#f5a524"/></svg>""")
+	tex_cam_off = _svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
+<g opacity="0.55"><path d="M8 6.5l1.2-2h5.6l1.2 2z" fill="#b8c4d8"/>
+<rect x="2.5" y="6.5" width="19" height="13" rx="2.2" fill="#b8c4d8"/>
+<circle cx="12" cy="13" r="4.2" fill="#1a1d27"/>
+<circle cx="12" cy="13" r="2.4" fill="#6b7689"/></g>
+<path d="M3.5 3.5L20.5 21" stroke="#1a1d27" stroke-width="4.6" stroke-linecap="round"/>
+<path d="M3.5 3.5L20.5 21" stroke="#e5534b" stroke-width="2.4" stroke-linecap="round"/></svg>""")
+	cam_btn = _icon_button(tex_cam_on, "")
+	cam_btn.pressed.connect(func():
+		cam_follow = not cam_follow
+		_update_follow())
+	eh.add_child(cam_btn)
 	tex_tb_closed = _svg_icon("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
 <path d="M8.5 8V6a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 15.5 6v2" fill="none" stroke="#b8c4d8" stroke-width="2"/>
 <rect x="3" y="8" width="18" height="12" rx="2" fill="#b8c4d8"/>
@@ -566,11 +596,46 @@ func _insert_snippet(code: String) -> void:
 	ed.grab_focus()
 
 
+## Poignée de redimensionnement sur le bord intérieur d'un panneau (à glisser à la souris).
+func _add_resize_handle(panel: PanelContainer, on_left: bool) -> void:
+	var h := Control.new()
+	h.mouse_default_cursor_shape = Control.CURSOR_HSIZE
+	h.mouse_filter = Control.MOUSE_FILTER_STOP
+	h.anchor_left = 1.0 if on_left else 0.0  # poignée du panneau de droite : ancrée au bord droit de l'écran
+	h.anchor_right = h.anchor_left
+	h.anchor_top = 0.0
+	h.anchor_bottom = 1.0
+	h.offset_top = TOP_H
+	h.offset_bottom = -BOTTOM_H
+	add_child(h)
+	h.visible = false
+	panel.visibility_changed.connect(func(): h.visible = panel.visible)
+	var drag := {"on": false}
+	var place := func():
+		h.offset_left = (panel.offset_left if on_left else panel.offset_right) - 5.0
+		h.offset_right = h.offset_left + 10.0
+	place.call()
+	h.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
+			drag.on = ev.pressed
+		elif ev is InputEventMouseMotion and drag.on:
+			var mx: float = get_viewport().get_mouse_position().x
+			var maxw: float = size.x * 0.75
+			if on_left:
+				out_w = clampf(size.x - mx, PANEL_MIN_W, maxw)
+				panel.offset_left = -out_w
+			else:
+				editor_w = clampf(mx, PANEL_MIN_W, maxw)
+				panel.offset_right = editor_w
+			place.call()
+			_update_view_insets())
+
+
 ## Fenêtre des sorties, collée au bord droit : print, erreurs et remarques, avec le nom du robot.
 func _build_output_panel() -> void:
 	out_panel = _panel()
 	out_panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
-	out_panel.offset_left = -OUT_W
+	out_panel.offset_left = -out_w
 	out_panel.offset_right = 0
 	out_panel.offset_top = TOP_H
 	out_panel.offset_bottom = -BOTTOM_H
@@ -984,9 +1049,20 @@ func _robot_name(id: String) -> String:
 
 ## L'entrepôt se centre dans l'espace laissé libre par l'éditeur et par les sorties.
 func _update_view_insets() -> void:
-	view.inset_left = float(EDITOR_W) if editor_panel.visible else 0.0
-	view.inset_right = float(OUT_W) if out_panel.visible else 0.0
+	view.inset_left = editor_w if editor_panel.visible else 0.0
+	view.inset_right = out_w if out_panel.visible else 0.0
+	_update_follow()
 	view.queue_redraw()
+
+
+## Caméra automatique : tant que l'éditeur d'un robot est ouvert, la vue est centrée sur lui et le suit.
+func _update_follow() -> void:
+	view.set_follow(open_robot if (cam_follow and editor_panel.visible and open_robot != "") else "")
+	if cam_btn == null:
+		return
+	cam_btn.icon = tex_cam_on if cam_follow else tex_cam_off
+	cam_btn.tooltip_text = ("Caméra automatique activée : la vue suit le robot (cliquer pour désactiver)" if cam_follow
+		else "Caméra automatique désactivée (cliquer pour que la vue suive le robot)")
 
 
 func _open_editor(id: String) -> void:
