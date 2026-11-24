@@ -22,6 +22,7 @@ func _init() -> void:
 	test_reflexion()
 	test_tuto()
 	test_noms_inconnus()
+	test_mur()
 	test_debug_couloirs()
 	print("")
 	print("=== %d tests réussis, %d échecs ===" % [passed, fails])
@@ -344,6 +345,15 @@ func test_debug_couloirs() -> void:
 		w2.tick()
 		xs[w2.intruders[0].x] = true
 	ok(xs.size() == 4 and not w2.intruders[0].loot, "debug/le voleur fait les cent pas sur les 4 cases", str(xs.keys()))
+
+
+func test_mur() -> void:
+	var lv := load_level("debug_01")  # couloir de 4 cases, robot en 0 tourné vers l'est
+	var w := World.new(lv, compile_all(lv, {"garde": "for i in range(4):\n    avancer()\n"}), 1)
+	for _t in 6:
+		w.tick()
+	ok(w.robots[0].hs and w.events.size() == 1 and String(w.events[0].msg).contains("mur") and w.robots[0].pos == 3,
+		"mur/avancer dans un mur met le robot en panne", str(w.events))
 
 
 func test_noms_inconnus() -> void:

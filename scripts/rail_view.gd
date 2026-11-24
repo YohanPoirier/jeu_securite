@@ -293,7 +293,47 @@ func _robot_center(lay: Dictionary, rb: Dictionary) -> Vector2:
 
 ## Plusieurs personnages sur une même case : on les range côte à côte, en plus petit.
 ## Retourne {clé -> {"off": décalage en cases, "sc": échelle}} ; clés « r<id> » (robots) et « t<n> » (intrus).
+var _slot_cur: Dictionary = {}  # rangement actuellement affiché (il glisse vers la cible au lieu de sauter)
+var _slot_frame := -1
+var _slot_ms := 0
+
+
 func _slots() -> Dictionary:
+	var fr := Engine.get_process_frames()
+	if fr == _slot_frame:
+		return _slot_cur
+	_slot_frame = fr
+	var now := Time.get_ticks_msec()
+	var dt := clampf(float(now - _slot_ms) / 1000.0, 0.0, 0.1)
+	_slot_ms = now
+	var k := 1.0 - exp(-dt * 9.0)
+	var target := _slot_targets()
+	var out: Dictionary = {}
+	var moving := false
+	var keys: Array = target.keys()
+	for key in _slot_cur:
+		if not target.has(key):
+			keys.append(key)
+	for key in keys:
+		var tg: Dictionary = target.get(key, {"off": Vector2.ZERO, "sc": 1.0})
+		var cu: Dictionary = _slot_cur.get(key, {"off": Vector2.ZERO, "sc": 1.0})
+		var off: Vector2 = (cu.off as Vector2).lerp(tg.off, k)
+		var sc: float = lerpf(cu.sc, tg.sc, k)
+		if off.distance_to(tg.off) < 0.004 and absf(sc - tg.sc) < 0.004:
+			off = tg.off
+			sc = tg.sc
+		else:
+			moving = true
+		if target.has(key) or off != Vector2.ZERO or sc != 1.0:
+			out[key] = {"off": off, "sc": sc}
+	_slot_cur = out
+	if moving:
+		queue_redraw.call_deferred()
+	return out
+
+
+## Rangement visé : plusieurs personnages sur une même case sont mis côte à côte, en plus petit.
+func _slot_targets() -> Dictionary:
 	var by_cell: Dictionary = {}
 	if world == null:
 		return by_cell

@@ -134,9 +134,10 @@ func call_api(name: String, args: Array, rb: Dictionary):
 	match name:
 		"avancer":
 			var to := Vector2i(rb.pos + rb.dir.x, rb.ry + rb.dir.y)
-			if walkable(to.x, to.y):
-				rb.pos = to.x
-				rb.ry = to.y
+			if not walkable(to.x, to.y):
+				return PyOps.err("avancer() : il y a un mur devant toi, le robot s'est cogné ! Vérifie avec regarder() avant d'avancer.")
+			rb.pos = to.x
+			rb.ry = to.y
 			return {"value": null, "cost": 1}
 		"tourner":
 			if typeof(args[0]) != TYPE_STRING or not DIRS.has(args[0]):
