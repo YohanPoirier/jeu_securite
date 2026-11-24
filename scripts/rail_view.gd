@@ -23,6 +23,7 @@ var inset_right := 0.0  # largeur masquée à droite (sorties)
 var zoom := 1.0  # molette : zoom ; glisser : déplacer la scène
 var pan := Vector2.ZERO
 var follow_id := ""  # robot suivi par la caméra (vide = pas de suivi)
+var _click_token := 0  # un clic sur le fond n'agit qu'après un court délai, pour laisser place au double-clic
 var _returning := false  # la caméra revient doucement au centre après un suivi
 var _press_pos := Vector2.ZERO
 var _pressing := false
@@ -352,6 +353,7 @@ func _gui_input(event: InputEvent) -> void:
 		_clamp_pan()
 		queue_redraw()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		_click_token += 1  # annule un clic sur le fond encore en attente (c'était le début d'un double-clic)
 		for i in world.robots.size():
 			if _robot_rect(lay, world.robots[i], slots).grow(6.0).has_point(event.position):
 				robot_clicked.emit(world.robots[i].id)
@@ -364,10 +366,14 @@ func _gui_input(event: InputEvent) -> void:
 		_dragging = false
 		_press_pos = event.position
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
-		if _pressing and not _dragging:
-			background_clicked.emit()
+		var simple_click := _pressing and not _dragging
 		_pressing = false
 		_dragging = false
+		if simple_click:
+			var token := _click_token
+			await get_tree().create_timer(0.25).timeout
+			if token == _click_token:
+				background_clicked.emit()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
 		if event.pressed:
 			_manual_move()
