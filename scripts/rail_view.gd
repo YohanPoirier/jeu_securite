@@ -103,6 +103,7 @@ func _ready() -> void:
 	_fg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fg.draw.connect(_draw_robots_fg)
+	_fg.modulate = Color(0.58, 0.60, 0.70)  # assombri comme le reste de l'entrepôt, sans être éclairé par son propre faisceau
 	add_child(_fg)
 	_hud = Control.new()
 	_hud.set_anchors_preset(Control.PRESET_FULL_RECT)
