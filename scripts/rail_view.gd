@@ -620,7 +620,7 @@ func _draw_robot(lay: Dictionary, rb: Dictionary, hovered: bool, slot := {"off":
 	draw_set_transform(c + Vector2(0, u * 0.36), 0.0, Vector2(1.0, 0.3))
 	draw_circle(Vector2.ZERO, u * 0.30, Color(0, 0, 0, 0.35))
 	if rb.dir.y != 0:
-		_draw_robot_vertical(c, u, b, float(rb.dir.y), broken, body_col, head_col)
+		_draw_robot_vertical(c, u, b, float(rb.dir.y), broken, body_col, head_col, lay.cell)
 		_robot_frame(c, u, broken, hovered)
 		return
 	draw_set_transform(c, 0.0, Vector2(f, 1.0))  # on dessine vers la droite ; f retourne le dessin
@@ -671,18 +671,27 @@ func _robot_frame(c: Vector2, u: float, broken: bool, hovered: bool) -> void:
 		Color(0, 0, 0, 0), u * 0.08, Color(0.95, 0.35, 0.35) if broken else Color(1, 1, 1, 0.85 if hovered else 0.0), 2 if (hovered or broken) else 0)
 
 
+## Lampe du robot quand il regarde au nord (d = -1) ou au sud (d = +1) : elle est tenue côté droit du robot
+## et tournée vers le milieu de la case devant lui. Retourne l'épaule, l'angle et le bout de la lampe
+## (positions relatives au centre du robot, u = taille du dessin).
+func _lamp_geom(d: float, u: float, cell: float) -> Dictionary:
+	var sh := Vector2(0.24 * u if d < 0 else -0.24 * u, 0.02 * u)
+	var theta := (Vector2(0.0, d * cell) - sh).angle() - Vector2(0.0, d).angle()
+	var tip := sh + Vector2(0.0, d * 0.29 * u).rotated(theta)
+	return {"sh": sh, "theta": theta, "tip": tip}
+
+
 ## Robot vu de dos (d = -1, il regarde vers le nord) ou de face (d = +1, vers le sud).
-func _draw_robot_vertical(c: Vector2, u: float, b: float, d: float, broken: bool, body_col: Color, head_col: Color) -> void:
+func _draw_robot_vertical(c: Vector2, u: float, b: float, d: float, broken: bool, body_col: Color, head_col: Color, cell: float) -> void:
 	draw_set_transform(c, 0.0, Vector2.ONE)
 	var dark := Color(0.16, 0.17, 0.20)
 	var lens := Color(0.30, 0.30, 0.30) if broken else Color(1.0, 0.95, 0.65)
 	# chenilles : deux bandes vues de dos / de face
 	for sx in [-1.0, 1.0]:
 		_rr(Rect2(u * (0.17 if sx > 0 else -0.27), u * 0.14 + b, u * 0.10, u * 0.24), dark, u * 0.05)
-	# la lampe est tenue du côté droit du robot : bras + lampe pointée vers l'avant (haut ou bas de l'écran)
+	var lg := _lamp_geom(d, u, cell)
 	var lamp_x := u * 0.19 if d < 0 else -u * 0.29
-	var arm_y := -u * 0.10 if d < 0 else u * 0.02
-	_rr(Rect2(lamp_x, u * 0.0 + b, u * 0.10, u * 0.16), body_col.darkened(0.12), u * 0.03)
+	_rr(Rect2(lamp_x, u * 0.0 + b, u * 0.10, u * 0.16), body_col.darkened(0.12), u * 0.03)  # épaule
 	# corps
 	_rr(Rect2(-u * 0.20, -u * 0.02 + b, u * 0.40, u * 0.26), body_col, u * 0.06)
 	_rr(Rect2(-u * 0.18, -u * 0.015 + b, u * 0.36, u * 0.045), body_col.lightened(0.3), u * 0.02)
@@ -691,10 +700,12 @@ func _draw_robot_vertical(c: Vector2, u: float, b: float, d: float, broken: bool
 		draw_circle(Vector2(0, u * 0.09 + b), u * 0.05, Color(0.95, 0.80, 0.25))  # insigne visible de face
 	else:
 		_rr(Rect2(-u * 0.08, u * 0.04 + b, u * 0.16, u * 0.10), body_col.darkened(0.2), u * 0.03)  # bloc batterie dans le dos
-	# bras et lampe : tendus vers l'avant
-	var tip_y := -u * 0.26 if d < 0 else u * 0.30
-	_rr(Rect2(lamp_x + u * 0.01, minf(u * 0.02 + b, tip_y + b), u * 0.08, absf(tip_y - u * 0.02)), Color(0.18, 0.19, 0.22), u * 0.03)
-	draw_rect(Rect2(lamp_x, tip_y + b - (u * 0.01 if d < 0 else -u * 0.0), u * 0.10, u * 0.035), lens)
+	# bras et lampe : tendus vers l'avant, tournés vers le milieu de la case
+	draw_set_transform(c + (lg.sh as Vector2) + Vector2(0, b), lg.theta, Vector2.ONE)
+	var l0 := 0.0 if d > 0 else -0.29
+	_rr(Rect2(-u * 0.04, u * l0, u * 0.08, u * 0.29), Color(0.18, 0.19, 0.22), u * 0.03)
+	draw_rect(Rect2(-u * 0.05, u * (0.27 if d > 0 else -0.30), u * 0.10, u * 0.035), lens)
+	draw_set_transform(c, 0.0, Vector2.ONE)
 	# tête
 	_rr(Rect2(-u * 0.16, -u * 0.29 + b, u * 0.32, u * 0.26), head_col, u * 0.08)
 	if d > 0:
@@ -777,8 +788,16 @@ func _update_night(lay: Dictionary, lamps: Array, slots: Dictionary) -> void:
 			var c: Vector2 = _robot_pos(lay, rb, slots)
 			var f := float(rb.facing)
 			var d := Vector2(rb.dir)
-			var lamp_off := Vector2(f * cell * 0.42, cell * 0.08) if rb.dir.x != 0 else Vector2(-d.y * cell * 0.27, d.y * cell * 0.32)  # la lampe est tenue côté droit du robot, bras tendu
-			pos.append(c + lamp_off * _slot(slots, "r" + str(rb.id)).sc)
+			var sc: float = _slot(slots, "r" + str(rb.id)).sc
+			var lamp_pos: Vector2
+			if rb.dir.x != 0:
+				lamp_pos = c + Vector2(float(rb.facing) * cell * 0.42, cell * 0.08) * sc
+			else:  # la lampe est tournée : le faisceau part du bout de la lampe, dans son axe
+				var u := cell * 1.12 * sc
+				var lg := _lamp_geom(d.y, u, cell * sc)
+				lamp_pos = c + (lg.tip as Vector2)
+				d = Vector2(0.0, d.y).rotated(lg.theta)
+			pos.append(lamp_pos)
 			dirs.append(d)
 			bodies.append(c)
 	var n := pos.size()
