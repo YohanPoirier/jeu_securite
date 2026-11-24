@@ -300,20 +300,22 @@ func test_tuto() -> void:
 	ok(I.chars_used(t4.solutions.garde) <= int(t4.memoire), "tuto/4 la boucle for tient", str(I.chars_used(t4.solutions.garde)))
 	var rej := I.compile(by_hand, t4.syntaxe, t4.api, t4.builtins)
 	ok(rej.ok, "tuto/4 syntaxe à la main acceptée par le jeu (la limite est celle de la mémoire)")
-	# tuto 5 : les attaques impaires ont un voleur, les paires aucun
+	# tuto 5 : trois voleurs figés, à des endroits tirés au hasard ; un balayage aveugle tombe en panne
 	var t5 := load_level("tuto_5")
-	var naive := compile_all(t5, {"garde": "assommer()\n"})
-	var empty := compile_all(t5, {"garde": "# rien\n"})
-	var odd := t5.duplicate()
-	odd["numero"] = 1
-	var even := t5.duplicate()
-	even["numero"] = 2
-	ok(play(odd, naive, 1).status == "victoire", "tuto/5 voleur présent : assommer seul suffit")
-	ok(play(even, naive, 1).status == "defaite", "tuto/5 assommer à vide : panne, défaite")
-	ok(play(odd, empty, 1).status == "defaite", "tuto/5 ne rien faire ne bat pas le voleur")
-	ok(play(even, empty, 1).status == "victoire", "tuto/5 sans voleur, ne rien faire suffit (mais il faut valider les deux cas)")
-	var good := compile_all(t5, t5.solutions)
-	ok(play(odd, good, 1).status == "victoire" and play(even, good, 1).status == "victoire", "tuto/5 le if gagne dans les deux cas")
+	var blind := compile_all(t5, {"garde": "for i in range(9):\n    avancer()\n    assommer()\n"})
+	var blind_wins := 0
+	var cells_seen := {}
+	for sd in range(1, 41):
+		var wb := play(t5, blind, sd)
+		if wb.status == "victoire":
+			blind_wins += 1
+		for it in wb.intruders:
+			cells_seen[it.x] = true
+	ok(blind_wins == 0, "tuto/5 assommer sans regarder ne gagne jamais", "(%d victoires)" % blind_wins)
+	ok(cells_seen.size() >= 5, "tuto/5 les voleurs changent de place selon l'attaque", str(cells_seen.keys()))
+	var w5 := World.new(t5, {}, 7)
+	var xs := w5.intruders.map(func(it): return it.x)
+	ok(xs.size() == 3 and xs.size() == {xs[0]: 1, xs[1]: 1, xs[2]: 1}.size(), "tuto/5 trois voleurs sur des cases différentes", str(xs))
 	# assommer dans le vide met le robot hors service
 	var lv := load_level("niveau_01")
 	var res := compile_all(lv, {"garde": "assommer()\n"})

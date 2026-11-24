@@ -2,31 +2,33 @@
  "id": "tuto_5",
  "etiquette": "Tuto 5/6",
  "titre": "Regarder avant d'agir",
- "enonce": "Parfois il y a un voleur devant toi, parfois non. Assommer dans le vide met ton robot en panne ! regarder() décrit ce qu'il y a devant toi (\"voleur\", \"mur\" ou \"rien\") et « if » n'exécute un bloc que si une condition est vraie. Écris un programme qui marche dans les deux cas : plusieurs attaques seront jouées, les paires avec un voleur, les impaires sans.",
- "longueur": 6,
+ "enonce": "Des voleurs se sont cachés un peu partout dans le couloir, à des endroits différents à chaque attaque. Attention : assommer dans le vide met ton robot en panne ! regarder() décrit ce qu'il y a devant toi (\"voleur\", \"mur\" ou \"rien\") et « if » n'exécute un bloc que si une condition est vraie. Avance case par case et n'assomme que s'il y a un voleur devant toi.",
+ "longueur": 10,
  "salles": 1,
  "reflexion": 200,
- "duree": 8,
+ "duree": 45,
  "panne_defaite": true,
  "intrus": {
   "nombre": 0,
-  "fixes": [
-   1
-  ],
-  "alterne": true
+  "fixes_alea": [
+   3,
+   1,
+   9
+  ]
  },
  "syntaxe": [
   "conditions",
   "boucle_for"
  ],
  "api": [
+  "avancer",
   "assommer",
   "regarder"
  ],
  "builtins": [
   "range"
  ],
- "code_initial": "# if regarder() == \"voleur\":\n#     assommer()\n",
+ "code_initial": "# for i in range(9):\n#     if regarder() == \"voleur\":\n#         assommer()\n#     avancer()\n",
  "robots": [
   {
    "id": "garde",
@@ -35,6 +37,6 @@
   }
  ],
  "solutions": {
-  "garde": "if regarder() == \"voleur\":\n    assommer()\n"
+  "garde": "for i in range(9):\n    if regarder() == \"voleur\":\n        assommer()\n    avancer()\n"
  }
 }

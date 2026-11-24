@@ -58,7 +58,6 @@ func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 	else:
 		length = int(l)
 	var cfg: Dictionary = level.get("intrus", {})
-	var num := int(level.get("numero", p_seed))  # numéro de l'attaque (1, 2, 3...) ; à défaut, la graine
 	var cnt = cfg.get("nombre", 1)
 	var n: int = rng.randi_range(int(cnt[0]), int(cnt[1])) if cnt is Array else int(cnt)
 	var ap: Array = cfg.get("apparition", [2, 6])
@@ -79,17 +78,22 @@ func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 			"pwf": Vector2i(x0, 0), "pwt": Vector2i(x0, 0), "pws": 0,
 		})
 	# voleurs « figés » (tuto) : déjà là au départ, immobiles jusqu'à ce qu'on les assomme.
-	# Avec "alterne", ils ne sont là qu'aux attaques impaires (les paires n'ont aucun voleur).
-	if not (cfg.get("alterne", false) and num % 2 == 0):
-		for cx in cfg.get("fixes", []):
-			intruders.append({
-				"spawn": 0, "side": 1, "dir": 1, "periode": periode, "t0": 0, "forcer": forcer,
-				"x": int(cx), "ry": 0, "px": int(cx), "py": 0, "pos": int(cx), "prev": int(cx),
-				"state": "actif", "phase": "fixe", "path": [], "loot": false, "target": Vector2i.ZERO,
-				"face": -1, "escaped": false, "exit_gate": 0,
-				"until": 1 << 30, "wf": Vector2i(int(cx), 0), "wt": Vector2i(int(cx), 0), "ws": 0,
-				"pwf": Vector2i(int(cx), 0), "pwt": Vector2i(int(cx), 0), "pws": 0,
-			})
+	# "fixes" : cases données ; "fixes_alea" : [nombre, case min, case max] tirées au hasard (toutes différentes).
+	var fixed: Array = cfg.get("fixes", []).duplicate()
+	if cfg.has("fixes_alea"):
+		var fa: Array = cfg["fixes_alea"]
+		var pool: Array = range(int(fa[1]), int(fa[2]) + 1)
+		for _k in mini(int(fa[0]), pool.size()):
+			fixed.append(pool.pop_at(rng.randi_range(0, pool.size() - 1)))
+	for cx in fixed:
+		intruders.append({
+			"spawn": 0, "side": 1, "dir": 1, "periode": periode, "t0": 0, "forcer": forcer,
+			"x": int(cx), "ry": 0, "px": int(cx), "py": 0, "pos": int(cx), "prev": int(cx),
+			"state": "actif", "phase": "fixe", "path": [], "loot": false, "target": Vector2i.ZERO,
+			"face": -1, "escaped": false, "exit_gate": 0,
+			"until": 1 << 30, "wf": Vector2i(int(cx), 0), "wt": Vector2i(int(cx), 0), "ws": 0,
+			"pwf": Vector2i(int(cx), 0), "pwt": Vector2i(int(cx), 0), "pws": 0,
+		})
 	var specs: Array = level.get("robots", [{"id": "robot", "nom": "Robot", "depart": 0}])
 	for spec in specs:
 		var start := clampi(int(spec.get("depart", 0)), 0, length - 1)
