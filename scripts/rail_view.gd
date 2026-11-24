@@ -75,8 +75,7 @@ void fragment() {
 		float cone = (1.0 - smoothstep(hw * 0.65, hw, across))
 			* smoothstep(-cell * 0.03, cell * 0.04, along)
 			* (1.0 - smoothstep(len * 0.80, len, along));
-		float halo = 1.0 - smoothstep(cell * 0.10, cell * 0.30, length(p - body[i]));
-		light = max(light, max(cone * 0.92, halo * 0.75));
+		light = max(light, cone * 0.92);
 	}
 	for (int j = 0; j < 32; j++) {
 		if (j >= lamp_count) { break; }
@@ -339,11 +338,6 @@ func _draw_hud() -> void:
 				if not rb2.hs and rb2.pos == it.x and it.ry == rb2.ry:
 					only = [0, 3]  # case partagée avec un robot : voleur sur l'autre diagonale
 			_marker(_cell_rect(lay, lay.k + it.x, RAIL_ROW + it.ry), Color(1.0, 0.40, 0.32, 0.65 if only.size() < 4 else 0.50), only)
-	for rb in world.robots:
-		if not rb.hs:  # petit halo lumineux autour du robot, par-dessus lui comme avant
-			var hc: Vector2 = _robot_pos(lay, rb, slots)
-			for hi in 8:
-				_hud.draw_circle(hc, cell * (0.30 - 0.025 * hi) * _slot(slots, "r" + str(rb.id)).sc, Color(1.0, 0.92, 0.6, 0.075))
 	for rb in world.robots:
 		if not rb.hs:
 			var shared := false
