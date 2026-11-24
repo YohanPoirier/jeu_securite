@@ -19,6 +19,7 @@ var done := false
 var error: Dictionary = {}
 var host = null
 var builtins: Array = []
+var api: Array = []  # fonctions du robot autorisées dans ce niveau (les autres : NameError à l'exécution)
 var printed: Array = []
 var thinking := false  # vrai si, ce tick, la réflexion a pris le pas sur une action
 var budget := 200  # seuil de réflexion gratuite (instructions par tick), fixé par le niveau
@@ -175,13 +176,16 @@ func _call(name: String, args: Array):
 			_fail(v.msg)
 			return null
 		return {"value": v, "cost": 0}
+	if host != null and host.has_api(name) and not api.has(name):
+		_fail("NameError : la fonction « %s » n'est pas disponible dans cette mission." % name)
+		return null
 	if host != null and host.has_api(name):
 		var r = host.call_api(name, args, robot_ref)
 		if r is PyOps.PyError:
 			_fail(r.msg)
 			return null
 		return r
-	_fail("NameError : la fonction « %s » n'existe pas." % name)
+	_fail("NameError : la fonction « %s » n'existe pas (vérifie l'orthographe)." % name)
 	return null
 
 

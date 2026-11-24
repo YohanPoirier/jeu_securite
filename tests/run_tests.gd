@@ -21,6 +21,7 @@ func _init() -> void:
 	test_hs()
 	test_reflexion()
 	test_tuto()
+	test_noms_inconnus()
 	print("")
 	print("=== %d tests réussis, %d échecs ===" % [passed, fails])
 	quit(1 if fails > 0 else 0)
@@ -143,7 +144,7 @@ func test_gating() -> void:
 	m = gate("for i in range(3):\n    avancer()\n", ["boucle_for", "variables"])
 	ok(m == "", "gating/for_ok", m)
 	m = gate("reculer()\n", [])
-	ok(m.contains("reculer") and m.contains("n'existe pas"), "gating/api_refusee", m)
+	ok(m == "", "gating/fonction inconnue : pas d'erreur avant l'exécution", m)
 
 
 # ---------- 4. niveaux : la solution de référence doit gagner ----------
@@ -316,3 +317,22 @@ func test_tuto() -> void:
 	var w := World.new(lv, res, 3)
 	w.tick()
 	ok(w.robots[0].hs and w.events.size() == 1 and String(w.events[0].msg).contains("personne"), "tuto/assommer dans le vide : robot HS", str(w.events))
+
+
+## Une fonction inconnue ou pas encore disponible n'échoue qu'à l'exécution de sa ligne.
+func test_noms_inconnus() -> void:
+	var lv := load_level("tuto_2")
+	var typo := compile_all(lv, {"garde": "avancer()\nassomer()\n"})
+	ok(not typo.is_empty(), "noms/la faute de frappe compile")
+	var w := World.new(lv, typo, 1)
+	w.tick()
+	ok(not w.robots[0].hs, "noms/pas d'erreur avant d'atteindre la ligne fautive")
+	w.tick()
+	ok(w.robots[0].hs and w.events.size() == 1 and w.events[0].line == 2 and String(w.events[0].msg).contains("assomer"),
+		"noms/erreur à la ligne fautive, au moment de l'exécution", str(w.events))
+	# une fonction d'un autre niveau (regarder n'est pas encore disponible au tuto 2)
+	var lv2 := load_level("tuto_2")
+	var early := compile_all(lv2, {"garde": "regarder()\n"})
+	var w2 := World.new(lv2, early, 1)
+	w2.tick()
+	ok(w2.robots[0].hs and String(w2.events[0].msg).contains("pas disponible"), "noms/fonction pas encore disponible : erreur à l'exécution", str(w2.events))

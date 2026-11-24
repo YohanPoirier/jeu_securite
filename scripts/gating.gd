@@ -81,8 +81,7 @@ func _expr(e: Dictionary) -> void:
 		"name":
 			_need("variables", "La variable « %s »" % e.id, e.line)
 		"call":
-			if not api.has(e.name) and not builtins.has(e.name):
-				errs.append({"line": e.line, "msg": "La fonction « %s » n'existe pas (ou n'est pas disponible à ce niveau)." % e.name})
+			pass  # une fonction inconnue n'est signalée qu'à l'exécution de la ligne (NameError), comme en Python
 			for a in e.args:
 				_expr(a)
 		"binop":
