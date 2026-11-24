@@ -1,0 +1,49 @@
+{
+ "id": "debug_01",
+ "etiquette": "Debug",
+ "debug": true,
+ "titre": "Deux couloirs",
+ "enonce": "Niveau de test. Un voleur fait les cent pas dans le couloir du haut, ton robot marche dans le couloir du bas : ils ne peuvent pas se rencontrer.",
+ "longueur": 12,
+ "salles": 2,
+ "couloir2": true,
+ "reflexion": 200,
+ "duree": 120,
+ "intrus": {
+  "nombre": 0,
+  "periode": 3,
+  "rondes": [
+   {
+    "x": 3,
+    "dir": 1
+   }
+  ]
+ },
+ "syntaxe": [
+  "boucle_while",
+  "boucle_for",
+  "conditions"
+ ],
+ "api": [
+  "avancer",
+  "tourner",
+  "regarder",
+  "assommer"
+ ],
+ "builtins": [
+  "range"
+ ],
+ "code_initial": "# Le robot marche dans le couloir du bas.\nwhile True:\n    for i in range(11):\n        avancer()\n    tourner(ouest)\n    for i in range(11):\n        avancer()\n    tourner(est)\n",
+ "robots": [
+  {
+   "id": "garde",
+   "nom": "Garde",
+   "depart": 0,
+   "orientation": "est",
+   "couloir": 2
+  }
+ ],
+ "solutions": {
+  "garde": "# Le robot marche dans le couloir du bas.\nwhile True:\n    for i in range(11):\n        avancer()\n    tourner(ouest)\n    for i in range(11):\n        avancer()\n    tourner(est)\n"
+ }
+}

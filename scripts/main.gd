@@ -779,7 +779,7 @@ func _make_editor() -> CodeEdit:
 
 
 func _is_unlocked(i: int) -> bool:
-	return unlock_all or i < unlocked
+	return unlock_all or i < unlocked or bool(levels[i].get("debug", false))
 
 
 # ---------- fenêtre centrale (scénario, menu, aide, menu principal) ----------
@@ -1255,7 +1255,7 @@ func _finish() -> void:
 			if cur + 1 == unlocked and unlocked < levels.size():
 				unlocked += 1
 				info["unlocked"] = unlocked
-			info["next"] = cur + 1 < levels.size()
+			info["next"] = cur + 1 < levels.size() and not bool(levels[cur + 1].get("debug", false))
 			_save_progress()
 	else:
 		info["title"] = "Échec"

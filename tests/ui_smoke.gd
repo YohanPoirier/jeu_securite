@@ -9,6 +9,8 @@ func _init() -> void:
 	var L1 := _idx(main, "niveau_01")
 	var L2 := _idx(main, "niveau_02")
 	for i in main.levels.size():
+		if main.levels[i].get("debug", false):
+			continue
 		main.unlock_all = true
 		main._select_level(i)
 		await process_frame

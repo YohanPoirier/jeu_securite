@@ -31,6 +31,7 @@ var _dragging := false
 
 const ROWS := 11
 const RAIL_ROW := 5  # rangée du couloir
+const B_EXTRA := 3  # rangées ajoutées en dessous quand le niveau a un second couloir (mur, couloir, mur)
 const MARGIN := 3  # colonnes avant la première case du rail : pelouse, pelouse, mur et porte
 const MOVE_FRACTION := 0.55  # part du tick consacrée au glissement ; le reste est la pause
 
@@ -124,16 +125,21 @@ func _ready() -> void:
 
 ## Géométrie de la grille, commune au dessin et aux clics.
 ## Le rail occupe les colonnes k, k+1, ... ; les portes sont dans les murs, de part et d'autre.
+## Nombre de rangées affichées (le second couloir ajoute une bande sous l'entrepôt).
+func _rows() -> int:
+	return ROWS + (B_EXTRA if world != null and world.has_b() else 0)
+
+
 func _layout() -> Dictionary:
 	var l: int = world.length if world != null else 6
 	var cols := l + 2 * MARGIN
 	var avail_w := size.x  # l'échelle ne dépend ni de l'éditeur ni des sorties : ouvrir un panneau ne dézoome pas
 	var avail_h := size.y - inset_top - inset_bottom
-	var cell: float = minf(avail_w / float(cols), avail_h / float(ROWS)) * zoom
+	var cell: float = minf(avail_w / float(cols), avail_h / float(_rows())) * zoom
 	return {
 		"l": l, "cols": cols, "cell": cell,
 		"x0": (avail_w - cell * cols) / 2.0 + pan.x,
-		"y0": inset_top + (avail_h - cell * ROWS) / 2.0 + pan.y,
+		"y0": inset_top + (avail_h - cell * _rows()) / 2.0 + pan.y,
 		"k": MARGIN,
 	}
 
@@ -214,7 +220,7 @@ func _manual_move() -> void:
 func _clamp_pan() -> void:
 	var lay := _layout()
 	var w: float = lay.cell * lay.cols
-	var h: float = lay.cell * ROWS
+	var h: float = lay.cell * _rows()
 	var avail_w := size.x
 	var avail_h := size.y - inset_top - inset_bottom
 	var lim_x := (avail_w + w) / 2.0 - 40.0
@@ -403,7 +409,7 @@ func _hash(c: int, r: int) -> int:
 
 
 func _inside(lay: Dictionary, c: int, r: int) -> bool:
-	return c >= 2 and c <= lay.k + lay.l and r >= 1 and r <= ROWS - 2
+	return c >= 2 and c <= lay.k + lay.l and r >= 1 and r <= _rows() - 2
 
 
 ## Salles : de part et d'autre du couloir, séparées par un mur d'une colonne.
@@ -502,14 +508,14 @@ func _draw_outside(lay: Dictionary, lamps: Array) -> void:
 	var cell: float = lay.cell
 	var c_min: int = floori(-lay.x0 / cell) - 1
 	var c_max: int = ceili((size.x - lay.x0) / cell) + 1
-	for r in range(-1, ROWS + 1):
+	for r in range(-1, _rows() + 1):
 		for c in range(c_min, c_max + 1):
 			if _inside(lay, c, r):
 				continue
 			var rc := _cell_rect(lay, c, r)
 			var h := _hash(c, r)
 			var ctr := rc.get_center()
-			if (r == 0 or r == ROWS - 1) and posmod(c, 5) == 0:
+			if (r == 0 or r == _rows() - 1) and posmod(c, 5) == 0:
 				_draw_lamp(ctr, cell)
 				lamps.append(ctr + Vector2(0, -cell * 0.42))
 			elif h % 6 == 0:
@@ -599,6 +605,20 @@ func _draw_warehouse(lay: Dictionary, font: Font) -> void:
 	# portes aux extrémités du couloir
 	for gc in [k - 1, right]:
 		_draw_gate(_cell_rect(lay, gc, RAIL_ROW), gc == k - 1, font, 0 if gc == k - 1 else 1)
+	# second couloir (niveaux de test) : une bande fermée sous l'entrepôt
+	if world != null and world.has_b():
+		var br: int = RAIL_ROW + world.COR_B
+		var walls2: Dictionary = {}
+		for c in range(k, right):
+			var rc2 := _cell_rect(lay, c, br)
+			draw_rect(rc2, C_FLOOR)
+			draw_rect(rc2, C_TILE, false, 1.0)
+		for c in range(2, right + 1):
+			_add_wall(walls2, c, br - 1)
+			_add_wall(walls2, c, br + 1)
+		_add_wall(walls2, 2, br)
+		_add_wall(walls2, right, br)
+		_draw_walls(lay, walls2)
 
 
 ## Style des murs : true = traits fins (la case reste non marchable, mais le mur est dessiné étroit),
@@ -925,7 +945,7 @@ func _draw_thief(lay: Dictionary, it: Dictionary, slot := {"off": Vector2.ZERO, 
 func _update_night(lay: Dictionary, lamps: Array, slots: Dictionary) -> void:
 	var cell: float = lay.cell
 	var mat: ShaderMaterial = _night.material
-	var box := Rect2(_cell_rect(lay, 2, 1).position, Vector2(cell * (lay.l + 2), cell * (ROWS - 2)))
+	var box := Rect2(_cell_rect(lay, 2, 1).position, Vector2(cell * (lay.l + 2), cell * (_rows() - 2)))
 	mat.set_shader_parameter("box", Vector4(box.position.x, box.position.y, box.size.x, box.size.y))
 	mat.set_shader_parameter("cell", cell)
 	var ga := _cell_rect(lay, lay.k - 1, RAIL_ROW)

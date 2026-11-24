@@ -22,6 +22,7 @@ func _init() -> void:
 	test_reflexion()
 	test_tuto()
 	test_noms_inconnus()
+	test_debug_couloirs()
 	print("")
 	print("=== %d tests réussis, %d échecs ===" % [passed, fails])
 	quit(1 if fails > 0 else 0)
@@ -180,7 +181,7 @@ func test_levels() -> void:
 	for id in index:
 		var lv := load_level(id)
 		ok(not lv.is_empty(), "niveau/" + id + "/lisible")
-		if lv.is_empty():
+		if lv.is_empty() or lv.get("debug", false):  # les niveaux de débogage ne se gagnent pas
 			continue
 		var compiled := compile_all(lv, lv.solutions)
 		ok(not compiled.is_empty(), "niveau/%s/solutions compilent" % id)
@@ -325,6 +326,25 @@ func test_tuto() -> void:
 
 
 ## Une fonction inconnue ou pas encore disponible n'échoue qu'à l'exécution de sa ligne.
+func test_debug_couloirs() -> void:
+	var lv := load_level("debug_01")
+	var compiled := compile_all(lv, lv.solutions)
+	var w := World.new(lv, compiled, 1)
+	var rb: Dictionary = w.robots[0]
+	ok(rb.ry == World.COR_B, "debug/le robot démarre dans le second couloir")
+	ok(w.walkable(0, World.COR_B) and w.walkable(11, World.COR_B) and not w.walkable(12, World.COR_B) and not w.walkable(0, World.COR_B - 1),
+		"debug/le second couloir est praticable, fermé et séparé du premier")
+	var xs := {}
+	var robot_max := 0
+	for _t in 200:
+		w.tick()
+		xs[w.intruders[0].x] = true
+		robot_max = maxi(robot_max, rb.pos)
+	ok(xs.size() == 12 and w.status == "en_cours" or w.status == "defaite", "debug/le voleur parcourt tout le couloir", str(xs.keys()))
+	ok(rb.ry == World.COR_B and robot_max == 11, "debug/le robot parcourt tout son couloir sans en sortir", "ry=%d max=%d" % [rb.ry, robot_max])
+	ok(w.intruders[0].state != "arrete" and not w.intruders[0].loot, "debug/le voleur ne vole pas et n'est pas arrêté")
+
+
 func test_noms_inconnus() -> void:
 	var lv := load_level("tuto_2")
 	var typo := compile_all(lv, {"garde": "avancer()\nassomer()\n"})

@@ -43,6 +43,7 @@ var gates: Array = [{"state": "ferme", "forced": false}, {"state": "ferme", "for
 var _reserved: Dictionary = {}
 const DIRS := {"nord": Vector2i(0, -1), "sud": Vector2i(0, 1), "est": Vector2i(1, 0), "ouest": Vector2i(-1, 0)}
 const START_OUT := 4
+const COR_B := 6  # décalage vertical du second couloir (niveaux avec "couloir2")
 const STEAL_TICKS := 3  # durée pour prendre l'objet  # les voleurs partent à cette distance en dehors de l'écran
 
 
@@ -94,12 +95,25 @@ func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 			"until": 1 << 30, "wf": Vector2i(int(cx), 0), "wt": Vector2i(int(cx), 0), "ws": 0,
 			"pwf": Vector2i(int(cx), 0), "pwt": Vector2i(int(cx), 0), "pws": 0,
 		})
+	# voleurs « de ronde » (débogage) : font les cent pas dans le couloir, sans jamais voler, jusqu'à être assommés
+	for rd in cfg.get("rondes", []):
+		var rx := int(rd.x)
+		var rdir := int(rd.get("dir", 1))
+		intruders.append({
+			"spawn": 0, "side": rdir, "dir": rdir, "periode": int(rd.get("periode", periode)), "t0": 0, "forcer": forcer,
+			"x": rx, "ry": 0, "px": rx, "py": 0, "pos": rx, "prev": rx,
+			"state": "actif", "phase": "ronde", "path": [], "loot": false, "target": Vector2i.ZERO,
+			"face": rdir, "escaped": false, "exit_gate": 0,
+			"until": 0, "wf": Vector2i(rx, 0), "wt": Vector2i(rx, 0), "ws": 0,
+			"pwf": Vector2i(rx, 0), "pwt": Vector2i(rx, 0), "pws": 0,
+		})
 	var specs: Array = level.get("robots", [{"id": "robot", "nom": "Robot", "depart": 0}])
 	for spec in specs:
 		var start := clampi(int(spec.get("depart", 0)), 0, length - 1)
 		var code = codes.get(spec.id, [])
 		var face: Vector2i = DIRS.get(spec.get("orientation", "est"), Vector2i(1, 0))
-		var rb := {"id": spec.id, "nom": spec.get("nom", spec.id), "pos": start, "prev": start, "ry": 0, "pry": 0, "dir": face, "vm": null, "hs": code == null, "facing": 1 if face.x >= 0 else -1, "stun": false}
+		var ry0 := COR_B if (has_b() and int(spec.get("couloir", 1)) == 2) else 0
+		var rb := {"id": spec.id, "nom": spec.get("nom", spec.id), "pos": start, "prev": start, "ry": ry0, "pry": ry0, "dir": face, "vm": null, "hs": code == null, "facing": 1 if face.x >= 0 else -1, "stun": false}
 		var vm := VM.new(code if code != null else [], self, level.get("builtins", []))
 		vm.robot_ref = rb
 		vm.budget = int(level.get("reflexion", 200))
@@ -248,7 +262,13 @@ func _gate_index(it: Dictionary) -> int:
 
 ## Cases praticables par les robots : le couloir, le seuil de chaque salle (au nord et au sud de sa
 ## première colonne) et le sol des salles. Les étagères et les murs ne le sont pas.
+func has_b() -> bool:
+	return bool(level.get("couloir2", false))
+
+
 func walkable(x: int, ry: int) -> bool:
+	if ry == COR_B:
+		return has_b() and x >= 0 and x < length
 	if ry == 0:
 		return x >= 0 and x < length
 	for r in rooms():
@@ -341,6 +361,10 @@ func _finish(it: Dictionary) -> void:
 			gates[it.exit_gate].forced = true
 			it.phase = "fuite"
 			_walk(it, it.path.pop_front())
+		"ronde":
+			if it.x + it.dir < 0 or it.x + it.dir > length - 1:
+				it.dir = -it.dir
+			_walk(it, Vector2i(it.x + it.dir, 0))
 		"fuite":
 			if it.x == -2 or it.x == length + 1:
 				it.escaped = true  # jugé après les coups de matraque du même tick
