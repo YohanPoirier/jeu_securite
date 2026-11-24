@@ -727,7 +727,7 @@ func _build_modal() -> void:
 	# un clic en dehors de la fenêtre (ou la touche Échap) la ferme, sauf pour la confirmation de remise à zéro
 	modal.gui_input.connect(func(ev: InputEvent):
 		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
-			if not panel.get_global_rect().has_point(ev.global_position):
+			if not panel.get_global_rect().has_point(ev.global_position) and not _modal_locked():
 				_close_modal())
 
 
@@ -833,7 +833,8 @@ func _show_modal(kind: String) -> void:
 				modal_box.add_child(body)
 			if result_info.next:
 				modal_box.add_child(_modal_button("Suite" if levels[cur + 1].has("etiquette") else "Niveau suivant", func(): _select_level(cur + 1)))
-			modal_box.add_child(_modal_button("Fermer", _close_modal))
+			if not _modal_locked():
+				modal_box.add_child(_modal_button("Fermer", _close_modal))
 		"principal":
 			var t := _label("Garde Robot")
 			t.add_theme_font_size_override("font_size", 26)
@@ -853,8 +854,15 @@ func _show_modal(kind: String) -> void:
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE and modal.visible:
+		if _modal_locked():
+			return
 		_close_modal()
 		get_viewport().set_input_as_handled()
+
+
+# Après une victoire suivie d'un autre niveau, la fenêtre de résultat ne se ferme pas : on passe obligatoirement à la suite.
+func _modal_locked() -> bool:
+	return modal.visible and modal_kind == "resultat" and bool(result_info.get("next", false))
 
 
 func _close_modal() -> void:
