@@ -29,6 +29,31 @@ const GLYPHS := {
 	"T": ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."],
 }
 
+const NIGHT_SHADER := """
+shader_type canvas_item;
+uniform vec4 box;             // l'entrepôt (un peu moins sombre, pour que le nom reste lisible)
+uniform float out_alpha = 0.50;
+uniform float in_alpha = 0.30;
+uniform float radius = 80.0;
+uniform int lamp_count = 0;
+uniform vec2 lamp[24];
+varying vec2 vpos;
+void vertex() { vpos = VERTEX; }
+void fragment() {
+	vec2 p = vpos;
+	bool inside = p.x >= box.x && p.x <= box.x + box.z && p.y >= box.y && p.y <= box.y + box.w;
+	float a = inside ? in_alpha : out_alpha;
+	float light = 0.0;
+	for (int j = 0; j < 24; j++) {
+		if (j >= lamp_count) { break; }
+		float g = 1.0 - smoothstep(0.0, radius, length(p - lamp[j]));
+		light = max(light, g * g * 0.85);
+	}
+	COLOR = vec4(mix(vec3(0.02, 0.03, 0.08), vec3(1.0, 0.90, 0.58), light), mix(a, 0.10, light));
+}
+"""
+
+var _night: ColorRect
 var buttons: VBoxContainer
 var load_btn: Button
 var _thieves: Array = []
@@ -48,6 +73,16 @@ func _ready() -> void:
 			"ph": rng.randf() * TAU,  # rythme des arrêts (ils rôdent, s'arrêtent, repartent)
 			"f": rng.randf_range(0.25, 0.55),
 		})
+	# la nuit : un voile sombre, éclairé par les lampadaires
+	_night = ColorRect.new()
+	_night.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_night.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = NIGHT_SHADER
+	mat.shader = sh
+	_night.material = mat
+	add_child(_night)
 	# boutons, au centre en bas
 	var holder := CenterContainer.new()
 	holder.anchor_left = 0.0
@@ -131,6 +166,18 @@ func _draw() -> void:
 	var inner: Rect2 = lay.inner
 	draw_rect(Rect2(Vector2.ZERO, size), C_GRASS)
 	_draw_grass(c)
+	var lamps := _lamp_spots(inner, c)
+	var lights := PackedVector2Array()
+	for lp in lamps:
+		_draw_lamp(lp, c * 1.8)
+		lights.append(lp + Vector2(0, -c * 1.8 * 0.42))
+	var mat: ShaderMaterial = _night.material
+	mat.set_shader_parameter("box", Vector4(inner.position.x, inner.position.y, inner.size.x, inner.size.y))
+	mat.set_shader_parameter("radius", c * 5.0)
+	mat.set_shader_parameter("lamp_count", lights.size())
+	while lights.size() < 24:
+		lights.append(Vector2(-9999, -9999))
+	mat.set_shader_parameter("lamp", lights)
 	# voleurs derrière l'entrepôt (au-dessus de lui à l'écran), puis l'entrepôt, puis ceux devant
 	var pos: Array = []
 	for th in _thieves:
@@ -142,6 +189,27 @@ func _draw() -> void:
 	for i in _thieves.size():
 		if pos[i].p.y >= inner.get_center().y:
 			_draw_thief(pos[i].p, c * 2.4, pos[i].face, pos[i].moving)
+
+
+## Lampadaires : le long des murs du haut et du bas, et aux deux bouts.
+func _lamp_spots(inner: Rect2, c: float) -> Array:
+	var out: Array = []
+	var ring := inner.grow(c * 1.5)
+	var n := 5
+	for i in n:
+		var x := ring.position.x + ring.size.x * (float(i) + 0.5) / float(n)
+		out.append(Vector2(x, ring.position.y))
+		out.append(Vector2(x, ring.end.y + c * 0.6))
+	out.append(Vector2(ring.position.x - c * 0.5, inner.get_center().y + c * 2.5))
+	out.append(Vector2(ring.end.x + c * 0.5, inner.get_center().y + c * 2.5))
+	return out
+
+
+func _draw_lamp(ctr: Vector2, cell: float) -> void:
+	_rr(Rect2(ctr + Vector2(-cell * 0.14, cell * 0.30), Vector2(cell * 0.28, cell * 0.08)), Color(0.20, 0.20, 0.24), 2)
+	draw_rect(Rect2(ctr + Vector2(-cell * 0.03, -cell * 0.38), Vector2(cell * 0.06, cell * 0.72)), Color(0.28, 0.28, 0.32))
+	_rr(Rect2(ctr + Vector2(-cell * 0.13, -cell * 0.50), Vector2(cell * 0.26, cell * 0.14)), Color(0.22, 0.22, 0.26), 3)
+	draw_circle(ctr + Vector2(0, -cell * 0.42), cell * 0.075, Color(1.0, 0.93, 0.60))
 
 
 func _hash(a: int, b: int) -> int:
