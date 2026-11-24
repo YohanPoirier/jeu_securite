@@ -423,6 +423,11 @@ func tick() -> void:
 			_walk(it, Vector2i(it.x + it.side, 0))
 		elif it.state == "actif" and tick_n >= it.until:
 			_finish(it)
+		# à mi-chemin de son pas, le voleur compte déjà comme étant dans la case suivante
+		if it.state == "actif" and it.wt != Vector2i(it.x, it.ry) and 2 * (tick_n - it.ws) >= int(it.until - it.ws):
+			it.x = it.wt.x
+			it.ry = it.wt.y
+			it.pos = it.x
 	# les coups de matraque : sur les cases surveillées au DÉBUT du tick (le voleur qui vient de bouger est touché quand même)
 	for rb in robots:
 		if rb.hs or not rb.stun:

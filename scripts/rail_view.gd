@@ -258,6 +258,28 @@ func _thief_visual(it: Dictionary) -> Vector2:
 	return Vector2(it.pwf).lerp(Vector2(it.pwt), k2)
 
 
+## Case du marqueur d'un voleur : elle change quand il a fait la moitié du chemin (comme pour le jeu).
+func _thief_cell(it: Dictionary) -> Vector2i:
+	if it.state != "actif":
+		return Vector2i(it.x, it.ry)
+	var t := _t_now()
+	var per := float(it.periode)
+	if t >= float(it.ws):
+		if it.wt == it.wf:
+			return it.wf
+		return it.wt if (t - float(it.ws)) / per >= 0.5 else it.wf
+	if it.pwt == it.pwf:
+		return it.pwt
+	return it.pwt if (t - float(it.pws)) / per >= 0.5 else it.pwf
+
+
+## Case du marqueur d'un robot : elle change à la moitié de son déplacement.
+func _robot_cell(rb: Dictionary) -> Vector2i:
+	if clampf(alpha / MOVE_FRACTION, 0.0, 1.0) >= 0.5:
+		return Vector2i(rb.pos, rb.ry)
+	return Vector2i(rb.prev, rb.pry)
+
+
 func _smooth_t() -> float:
 	var u := clampf(alpha / MOVE_FRACTION, 0.0, 1.0)
 	return u * u * (3.0 - 2.0 * u)
@@ -473,22 +495,23 @@ func _draw_hud() -> void:
 	var lay := _layout()
 	var cell: float = lay.cell
 	var slots := _slots()
-	# marqueurs de case discrets (coins) : voleurs en rouge, robots en bleu (+ la case devant, plus pâle)
+	# marqueurs de case discrets (coins) : voleurs en rouge, robots en bleu ; ils changent de case à mi-chemin
+	var rcells: Array = []
+	for rb in world.robots:
+		rcells.append(_robot_cell(rb) if not rb.hs else Vector2i(-999, -999))
+	var tcells: Array = []
 	for it in world.intruders:
 		if it.state == "actif":
-			var only: Array = [0, 1, 2, 3]
-			for rb2 in world.robots:
-				if not rb2.hs and rb2.pos == it.x and it.ry == rb2.ry:
-					only = [0, 3]  # case partagée avec un robot : voleur sur l'autre diagonale
-			_marker(_cell_rect(lay, lay.k + it.x, RAIL_ROW + it.ry), Color(1.0, 0.40, 0.32, 0.65 if only.size() < 4 else 0.50), only)
-	for rb in world.robots:
-		if not rb.hs:
-			var shared := false
-			for it2 in world.intruders:
-				if it2.state == "actif" and it2.ry == rb.ry and it2.x == rb.pos:
-					shared = true
-			# case partagée avec un voleur : coins alternés (robot sur la diagonale haut-droit / bas-gauche)
-			_marker(_cell_rect(lay, lay.k + rb.pos, RAIL_ROW + rb.ry), Color(0.45, 0.85, 1.0, 0.65 if shared else 0.50), [1, 2] if shared else [0, 1, 2, 3])
+			tcells.append(_thief_cell(it))
+	for tc in tcells:
+		var only: Array = [0, 1, 2, 3] if not rcells.has(tc) else [0, 3]  # case partagée : voleur sur l'autre diagonale
+		_marker(_cell_rect(lay, lay.k + tc.x, RAIL_ROW + tc.y), Color(1.0, 0.40, 0.32, 0.65 if only.size() < 4 else 0.50), only)
+	for rc in rcells:
+		if rc.x == -999:
+			continue
+		var shared: bool = tcells.has(rc)
+		# case partagée avec un voleur : coins alternés (robot sur la diagonale haut-droit / bas-gauche)
+		_marker(_cell_rect(lay, lay.k + rc.x, RAIL_ROW + rc.y), Color(0.45, 0.85, 1.0, 0.65 if shared else 0.50), [1, 2] if shared else [0, 1, 2, 3])
 	for i in world.robots.size():
 		var rb: Dictionary = world.robots[i]
 		var sl: Dictionary = _slot(slots, "r" + str(rb.id))
