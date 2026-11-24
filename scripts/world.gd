@@ -80,7 +80,7 @@ func _init(p_level: Dictionary, codes: Dictionary, p_seed: int) -> void:
 	# voleurs « figés » (tuto) : déjà là au départ, immobiles jusqu'à ce qu'on les assomme.
 	# "fixes" : cases données ; "fixes_alea" : [nombre, case min, case max] tirées au hasard (toutes différentes).
 	var fixed: Array = cfg.get("fixes", []).duplicate()
-	if cfg.has("fixes_alea"):
+	if cfg.has("fixes_alea") and not level.get("apercu", false):  # aperçu avant le lancement : les voleurs ne sont pas encore là
 		var fa: Array = cfg["fixes_alea"]
 		var pool: Array = range(int(fa[1]), int(fa[2]) + 1)
 		for _k in mini(int(fa[0]), pool.size()):

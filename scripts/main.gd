@@ -857,7 +857,9 @@ func _restart_level() -> void:
 	out_panel.visible = false
 	attack_choice = -1
 	_rebuild_attack_menu()
-	world = World.new(levels[cur], {}, 0)
+	var lv_view: Dictionary = levels[cur].duplicate()
+	lv_view["apercu"] = true
+	world = World.new(lv_view, {}, 0)
 	view.world = world
 	view.alpha = 1.0
 	view.queue_redraw()
@@ -938,7 +940,9 @@ func _select_level(idx: int) -> void:
 	out_panel.visible = false
 	attack_choice = -1
 	_rebuild_attack_menu()
-	world = World.new(lv, {}, 0)
+	var lv_view: Dictionary = lv.duplicate()
+	lv_view["apercu"] = true  # avant le lancement : pas de voleurs tirés au hasard
+	world = World.new(lv_view, {}, 0)
 	view.world = world
 	view.alpha = 1.0
 	view.queue_redraw()
