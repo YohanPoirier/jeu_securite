@@ -14,7 +14,7 @@ const RailView = preload("res://scripts/rail_view.gd")
 const SAVE_PATH := "user://progression.cfg"
 const TOP_H := 40
 const BOTTOM_H := 64
-const SPEEDS := [["Lent (2 s par tick)", 0.5], ["Posé (1 s par tick)", 1.0], ["Normal (×1)", 6.0], ["Rapide (×2)", 12.0], ["Très rapide (×4)", 24.0]]
+const SPEEDS := [["Lent (2 s par tick)", 0.5, "×0,5"], ["Normal (1 s par tick)", 1.0, "×1"], ["Rapide (0,5 s par tick)", 2.0, "×2"], ["Flash (0,2 s par tick)", 5.0, "×5"]]
 const GREEN := Color(0.16, 0.50, 0.28)
 const ATTACK_TIP := "Attaque à lancer : une nouvelle, ou une ancienne à rejouer pour déboguer"
 const ERROR_LINE := Color(0.9, 0.25, 0.25, 0.30)
@@ -38,7 +38,7 @@ var timer := 0.0
 var editors: Dictionary = {}  # id du robot -> CodeEdit
 var marks: Dictionary = {}  # id du robot -> ligne surlignée
 var open_robot := ""
-var tps := 6.0  # ticks par seconde
+var tps := 1.0  # ticks par seconde
 var sim_paused := false  # vrai tant que le choix de vitesse est ouvert
 var attacks: Dictionary = {}  # id du niveau -> liste des attaques déjà jouées (n° 1, 2, 3...)
 var attack_choice := -1  # -1 : nouvelle attaque ; k : rejouer l'attaque n° k+1
@@ -313,7 +313,9 @@ func _build_bottom_bar() -> void:
 	speed_btn.icon = _gauge_icon()
 	speed_btn.expand_icon = false
 	speed_btn.custom_minimum_size = Vector2(46, 46)
-	speed_btn.tooltip_text = "Vitesse de la simulation"
+	speed_btn.text = "×1"  # vitesse actuelle, à côté de l'icône
+	speed_btn.add_theme_font_size_override("font_size", 15)
+	speed_btn.tooltip_text = "Vitesse : Normal (1 s par tick)"
 	_apply_colors(speed_btn, Color(0.20, 0.38, 0.62))
 	speed_menu = _make_popup()
 	for i in SPEEDS.size():
@@ -390,7 +392,8 @@ func _on_speed_chosen(id: int) -> void:
 	tps = SPEEDS[id][1]
 	for i in SPEEDS.size():
 		speed_menu.set_item_checked(i, i == id)
-	speed_btn.tooltip_text = "Vitesse : %s" % String(SPEEDS[id][0]).replace("  ", " ")
+	speed_btn.tooltip_text = "Vitesse : %s" % String(SPEEDS[id][0])
+	speed_btn.text = String(SPEEDS[id][2])
 
 
 # ---------- attaques ----------
