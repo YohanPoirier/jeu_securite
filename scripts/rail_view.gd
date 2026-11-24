@@ -675,9 +675,10 @@ func _robot_frame(c: Vector2, u: float, broken: bool, hovered: bool) -> void:
 ## et tournée vers le milieu de la case devant lui. Retourne l'épaule, l'angle et le bout de la lampe
 ## (positions relatives au centre du robot, u = taille du dessin).
 func _lamp_geom(d: float, u: float, cell: float) -> Dictionary:
-	var sh := Vector2(0.24 * u if d < 0 else -0.24 * u, 0.02 * u)
+	var sh := Vector2(0.30 * u if d < 0 else -0.24 * u, 0.02 * u)
 	var theta := (Vector2(0.0, d * cell) - sh).angle() - Vector2(0.0, d).angle()
-	var tip := sh + Vector2(0.0, d * 0.29 * u).rotated(theta)
+	# de dos, le bras est court : le bout de la lampe reste à côté du corps, pas devant la tête
+	var tip := sh + Vector2(0.0, d * (0.14 if d < 0 else 0.29) * u).rotated(theta)
 	return {"sh": sh, "theta": theta, "tip": tip}
 
 
@@ -690,7 +691,7 @@ func _draw_robot_vertical(c: Vector2, u: float, b: float, d: float, broken: bool
 	for sx in [-1.0, 1.0]:
 		_rr(Rect2(u * (0.17 if sx > 0 else -0.27), u * 0.14 + b, u * 0.10, u * 0.24), dark, u * 0.05)
 	var lg := _lamp_geom(d, u, cell)
-	var lamp_x := u * 0.19 if d < 0 else -u * 0.29
+	var lamp_x := u * 0.25 if d < 0 else -u * 0.29
 	_rr(Rect2(lamp_x, u * 0.0 + b, u * 0.10, u * 0.16), body_col.darkened(0.12), u * 0.03)  # épaule
 	# corps
 	_rr(Rect2(-u * 0.20, -u * 0.02 + b, u * 0.40, u * 0.26), body_col, u * 0.06)
@@ -702,9 +703,9 @@ func _draw_robot_vertical(c: Vector2, u: float, b: float, d: float, broken: bool
 		_rr(Rect2(-u * 0.08, u * 0.04 + b, u * 0.16, u * 0.10), body_col.darkened(0.2), u * 0.03)  # bloc batterie dans le dos
 	# bras et lampe : tendus vers l'avant, tournés vers le milieu de la case
 	draw_set_transform(c + (lg.sh as Vector2) + Vector2(0, b), lg.theta, Vector2.ONE)
-	var l0 := 0.0 if d > 0 else -0.29
-	_rr(Rect2(-u * 0.04, u * l0, u * 0.08, u * 0.29), Color(0.18, 0.19, 0.22), u * 0.03)
-	draw_rect(Rect2(-u * 0.05, u * (0.27 if d > 0 else -0.30), u * 0.10, u * 0.035), lens)
+	var alen := 0.29 if d > 0 else 0.14
+	_rr(Rect2(-u * 0.04, 0.0 if d > 0 else -u * alen, u * 0.08, u * alen), Color(0.18, 0.19, 0.22), u * 0.03)
+	draw_rect(Rect2(-u * 0.05, u * (0.27 if d > 0 else -0.155), u * 0.10, u * 0.035), lens)
 	draw_set_transform(c, 0.0, Vector2.ONE)
 	# tête
 	_rr(Rect2(-u * 0.16, -u * 0.29 + b, u * 0.32, u * 0.26), head_col, u * 0.08)
