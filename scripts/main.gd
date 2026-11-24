@@ -774,8 +774,68 @@ func _make_editor() -> CodeEdit:
 	hl.add_color_region("\"", "\"", Color(0.6, 0.85, 0.5))
 	hl.add_color_region("'", "'", Color(0.6, 0.85, 0.5))
 	e.syntax_highlighter = hl
+	e.code_completion_enabled = true
+	e.code_completion_requested.connect(func(): _complete(e))
+	e.text_changed.connect(func(): _maybe_complete(e))
 	e.visible = false
 	return e
+
+
+## Autocomplétion : dès qu'on tape le début d'un nom, propose les fonctions du niveau,
+## les mots-clés débloqués, les directions et les variables déjà écrites dans le programme.
+func _maybe_complete(e: CodeEdit) -> void:
+	var line := e.get_line(e.get_caret_line())
+	var col := e.get_caret_column()
+	var before := line.substr(0, col)
+	if before.count("#") > 0 or before.count("\"") % 2 == 1:  # dans un commentaire ou une chaîne
+		return
+	var m := RegEx.create_from_string("[A-Za-z_][A-Za-z_0-9]*$").search(before)
+	if m != null:
+		e.request_code_completion()
+
+
+func _complete(e: CodeEdit) -> void:
+	var lv: Dictionary = levels[cur]
+	var syn: Array = lv.get("syntaxe", [])
+	var api: Array = lv.get("api", [])
+	var cands: Dictionary = {}  # texte affiché -> [texte inséré, type]
+	for f in api:
+		cands[f] = [f + ("()" if int(World.API_ARITY.get(f, 1)) == 0 else "("), CodeEdit.KIND_FUNCTION]
+	for b in lv.get("builtins", []):
+		cands[b] = [b + "(", CodeEdit.KIND_FUNCTION]
+	if api.has("tourner"):
+		for d in ["nord", "sud", "est", "ouest"]:
+			cands[d] = [d, CodeEdit.KIND_CONSTANT]
+	var kws: Array = []
+	if syn.has("boucle_while"):
+		kws += ["while", "True", "False", "break"]
+	if syn.has("boucle_for"):
+		kws += ["for", "in", "range"]
+	if syn.has("conditions"):
+		kws += ["if", "elif", "else", "and", "or", "not", "True", "False"]
+	for k in kws:
+		if k == "range":
+			continue
+		cands[k] = [k, CodeEdit.KIND_PLAIN_TEXT]
+	# variables : affectations et variables de boucle déjà présentes dans le programme
+	for mm in RegEx.create_from_string("(?m)^\\s*([A-Za-z_][A-Za-z_0-9]*)\\s*=[^=]|\\bfor\\s+([A-Za-z_][A-Za-z_0-9]*)\\s+in\\b").search_all(e.text):
+		var v := mm.get_string(1) if mm.get_string(1) != "" else mm.get_string(2)
+		if not cands.has(v):
+			cands[v] = [v, CodeEdit.KIND_VARIABLE]
+	var line := e.get_line(e.get_caret_line()).substr(0, e.get_caret_column())
+	var m := RegEx.create_from_string("[A-Za-z_][A-Za-z_0-9]*$").search(line)
+	var prefix := m.get_string() if m != null else ""
+	var names: Array = cands.keys()
+	names.sort()
+	var n := 0
+	for name in names:
+		if name.begins_with(prefix) and name != prefix:
+			e.add_code_completion_option(cands[name][1], name, cands[name][0])
+			n += 1
+	if n > 0:
+		e.update_code_completion_options(true)
+	else:
+		e.cancel_code_completion()
 
 
 func _is_unlocked(i: int) -> bool:
