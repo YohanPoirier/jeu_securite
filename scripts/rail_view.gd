@@ -777,7 +777,7 @@ func _update_night(lay: Dictionary, lamps: Array, slots: Dictionary) -> void:
 			var c: Vector2 = _robot_pos(lay, rb, slots)
 			var f := float(rb.facing)
 			var d := Vector2(rb.dir)
-			var lamp_off := Vector2(f * cell * 0.42, cell * 0.08) if rb.dir.x != 0 else Vector2(0.0, d.y * cell * 0.42)
+			var lamp_off := Vector2(f * cell * 0.42, cell * 0.08) if rb.dir.x != 0 else Vector2(-d.y * cell * 0.27, d.y * cell * 0.32)  # la lampe est tenue côté droit du robot, bras tendu
 			pos.append(c + lamp_off * _slot(slots, "r" + str(rb.id)).sc)
 			dirs.append(d)
 			bodies.append(c)
