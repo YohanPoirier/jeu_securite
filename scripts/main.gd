@@ -884,7 +884,7 @@ func _show_modal(kind: String) -> void:
 				tabs.add_child(b)
 			var sc := ScrollContainer.new()
 			sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-			sc.custom_minimum_size = Vector2(620, 360)
+			sc.custom_minimum_size = Vector2(620, minf(360.0, maxf(120.0, get_viewport_rect().size.y - 260.0)))
 			modal_box.add_child(sc)
 			var rt := RichTextLabel.new()
 			rt.bbcode_enabled = true
@@ -922,10 +922,19 @@ func _show_modal(kind: String) -> void:
 			t.add_theme_font_size_override("font_size", 26)
 			t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			modal_box.add_child(t)
+			# la liste défile si la fenêtre est trop petite pour tous les niveaux
+			var lsc := ScrollContainer.new()
+			lsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+			lsc.custom_minimum_size = Vector2(0, minf(float(levels.size()) * 56.0, maxf(120.0, get_viewport_rect().size.y - 230.0)))
+			modal_box.add_child(lsc)
+			var lbox := VBoxContainer.new()
+			lbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lbox.add_theme_constant_override("separation", 12)
+			lsc.add_child(lbox)
 			for i in levels.size():
 				var b := _modal_button("%s — %s" % [_tag(i), levels[i].titre], func(): _select_level(i))
 				b.disabled = not _is_unlocked(i)
-				modal_box.add_child(b)
+				lbox.add_child(b)
 			var cb := CheckBox.new()
 			cb.text = "Tout débloquer"
 			cb.button_pressed = unlock_all
